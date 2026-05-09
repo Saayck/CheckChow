@@ -44,7 +44,7 @@ export default function Login() {
       setError("Usuario y contraseña son obligatorios.");
       return;
     }
-    
+
     console.log("login:", { username, password });
   };
 
@@ -118,10 +118,6 @@ export default function Login() {
 
         </form>
 
-        <div className="footer-text">
-          ¿Olvidaste tu contraseña?
-          <span> Recuperar</span>
-        </div>
 
       </div>
 
