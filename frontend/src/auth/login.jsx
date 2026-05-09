@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import "../styles/login.css";
 import logoImg from "../assets/logo.png";
 
@@ -32,10 +33,16 @@ const EyeSlashIcon = ({ className }) => (
 );
 
 export default function Login() {
+  const navigate = useNavigate();
   const [mostrarPassword, setMostrarPassword] = useState(false);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+
+  const validUsers = [
+    { username: "admin", password: "admin123", role: "Administrador" },
+    { username: "operador", password: "omr2026", role: "Operador" },
+  ];
 
   const handleSubmit = (event) => {
     event.preventDefault();
@@ -45,7 +52,20 @@ export default function Login() {
       return;
     }
 
-    console.log("login:", { username, password });
+    const matchedUser = validUsers.find(
+      (user) => user.username === username.trim().toLowerCase() && user.password === password
+    );
+
+    if (!matchedUser) {
+      setError("Credenciales inválidas. Prueba con admin / admin123 u operador / omr2026.");
+      return;
+    }
+
+    localStorage.setItem(
+      "checkchow_session",
+      JSON.stringify({ username: matchedUser.username, role: matchedUser.role })
+    );
+    navigate("/panel");
   };
 
   return (

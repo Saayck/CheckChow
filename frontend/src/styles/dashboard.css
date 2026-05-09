@@ -1,0 +1,233 @@
+.dashboard-shell {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top left, rgba(34, 197, 94, 0.16), transparent 28%),
+    radial-gradient(circle at bottom right, rgba(14, 165, 233, 0.16), transparent 30%),
+    linear-gradient(135deg, #08111f 0%, #0f172a 50%, #111827 100%);
+  color: #f8fafc;
+}
+
+.dashboard-navbar {
+  background: rgba(8, 17, 31, 0.82);
+  backdrop-filter: blur(18px);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.brand-mark {
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.06);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.25);
+}
+
+.brand-mark img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.brand-copy {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.1;
+}
+
+.brand-copy small {
+  color: #cbd5e1;
+}
+
+.dashboard-nav-link {
+  border-radius: 999px;
+  padding: 0.65rem 1rem;
+  color: #dbe4f0 !important;
+  transition: transform 0.2s ease, background-color 0.2s ease, color 0.2s ease;
+}
+
+.dashboard-nav-link:hover,
+.dashboard-nav-link.active {
+  background: rgba(34, 197, 94, 0.14);
+  color: #ffffff !important;
+  transform: translateY(-1px);
+}
+
+.hero-panel,
+.glass-card {
+  background: rgba(7, 12, 22, 0.64);
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(18px);
+  border-radius: 28px;
+}
+
+.hero-panel {
+  padding: 2rem;
+}
+
+.eyebrow,
+.section-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: #86efac;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.metric-card,
+.hero-card,
+.glass-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.metric-card::before,
+.hero-card::before,
+.glass-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.07), transparent 35%);
+  pointer-events: none;
+}
+
+.metric-icon,
+.quick-action-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  background: rgba(34, 197, 94, 0.14);
+  color: #86efac;
+  font-size: 1.35rem;
+}
+
+.metric-label {
+  color: #cbd5e1;
+  font-size: 0.95rem;
+}
+
+.metric-value {
+  font-size: 2rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.metric-trend {
+  color: #86efac;
+  font-weight: 600;
+  font-size: 0.92rem;
+}
+
+.mini-stat {
+  border-radius: 20px;
+  padding: 1rem 1.1rem;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(148, 163, 184, 0.1);
+}
+
+.mini-stat span {
+  display: block;
+  color: #cbd5e1;
+  font-size: 0.85rem;
+  margin-bottom: 0.35rem;
+}
+
+.mini-stat strong {
+  font-size: 1.35rem;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.4rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.status-live,
+.status-success {
+  background: rgba(34, 197, 94, 0.16);
+  color: #86efac;
+}
+
+.status-warning {
+  background: rgba(250, 204, 21, 0.14);
+  color: #fde68a;
+}
+
+.status-danger {
+  background: rgba(248, 113, 113, 0.16);
+  color: #fecaca;
+}
+
+.dashboard-table {
+  --bs-table-bg: transparent;
+  --bs-table-color: #f8fafc;
+  --bs-table-border-color: rgba(148, 163, 184, 0.12);
+}
+
+.dashboard-table thead th {
+  color: #cbd5e1;
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+}
+
+.dashboard-table tbody tr {
+  border-color: rgba(148, 163, 184, 0.12);
+}
+
+.dashboard-table tbody tr:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.quick-action {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 1.1rem;
+  border-radius: 22px;
+  text-decoration: none;
+  color: inherit;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(148, 163, 184, 0.1);
+  transition: transform 0.2s ease, border-color 0.2s ease, background-color 0.2s ease;
+}
+
+.quick-action:hover {
+  transform: translateY(-2px);
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(134, 239, 172, 0.24);
+  color: #fff;
+}
+
+.step-number {
+  width: 54px;
+  height: 54px;
+  border-radius: 18px;
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  background: rgba(14, 165, 233, 0.15);
+  color: #7dd3fc;
+}
+
+@media (max-width: 991.98px) {
+  .hero-panel {
+    padding: 1.4rem;
+  }
+
+  .brand-copy small {
+    display: none;
+  }
+}
