@@ -1,74 +1,38 @@
 import Header from "../../../components/header";
 import "../../../styles/dashboard.css";
-import { useMemo, useState } from "react";
-
-const facultyList = ["Ingeniería", "Humanidades", "Salud", "Empresariales"];
-
-const getCareersByFaculty = (faculty) => {
-	const stored = localStorage.getItem("careersData");
-	if (stored) {
-		try {
-			const allCareers = JSON.parse(stored);
-			return allCareers.filter((c) => c.faculty === faculty).map((c) => c.name);
-		} catch {
-			return [];
-		}
-	}
-	return [];
-};
+import { useMemo, useState, useEffect } from "react";
 
 const initialPostulants = [
-	{
-		id: 1,
-		names: "Juan Carlos Pérez Gómez",
-		dni: "12345678",
-		birthDate: "15/08/2007",
-		address: "Av. Los Álamos 123",
-		phone: "987654321",
-		email: "juanperez@gmail.com",
-		school: "I.E. San Martín",
-		graduationYear: "2025",
-		admissionMode: "Examen Ordinario",
-		career: "Ingeniería de Sistemas",
-		faculty: "Ingeniería",
-		guardian: "Carlos Pérez",
-		contactPhone: "999888777",
-	},
+	{ id: 1, dni: "12345678", names: "Juan Carlos Pérez Gómez", litho: "", tema: "" },
 ];
 
 export default function GestPostulantes() {
-	const [postulants, setPostulants] = useState(initialPostulants);
+	const getInitialPostulants = () => {
+		try {
+			const stored = localStorage.getItem("postulantsData");
+			return stored ? JSON.parse(stored) : initialPostulants;
+		} catch {
+			return initialPostulants;
+		}
+	};
+
+	const [postulants, setPostulants] = useState(getInitialPostulants);
 	const [editingId, setEditingId] = useState(null);
 	const [formVisible, setFormVisible] = useState(false);
-	const emptyForm = useMemo(() => ({
-		names: "",
-		dni: "",
-		birthDate: "",
-		address: "",
-		phone: "",
-		email: "",
-		school: "",
-		graduationYear: "",
-		admissionMode: "",
-		career: "",
-		faculty: "",
-		guardian: "",
-		contactPhone: "",
-	}), []);
+	const emptyForm = useMemo(() => ({ names: "", dni: "", litho: "", tema: "" }), []);
 	const [formData, setFormData] = useState(emptyForm);
+	const [importMessage, setImportMessage] = useState("");
+
+	// persist postulants
+	useEffect(() => {
+		try {
+			localStorage.setItem("postulantsData", JSON.stringify(postulants));
+		} catch {}
+	}, [postulants]);
 
 	const handleChange = (event) => {
 		const { name, value } = event.target;
 		setFormData((current) => ({ ...current, [name]: value }));
-	};
-
-	const handleFacultyChange = (event) => {
-		const { value } = event.target;
-		setFormData((current) => ({
-			...current,
-			faculty: value,
-			career: "",
-		}));
 	};
 
 	const resetForm = () => {
@@ -84,21 +48,7 @@ export default function GestPostulantes() {
 	};
 
 	const handleEditClick = (postulant) => {
-		setFormData({
-			names: postulant.names,
-			dni: postulant.dni,
-			birthDate: postulant.birthDate,
-			address: postulant.address,
-			phone: postulant.phone,
-			email: postulant.email,
-			school: postulant.school,
-			graduationYear: postulant.graduationYear,
-			admissionMode: postulant.admissionMode,
-			career: postulant.career,
-			faculty: postulant.faculty,
-			guardian: postulant.guardian,
-			contactPhone: postulant.contactPhone,
-		});
+		setFormData({ names: postulant.names, dni: postulant.dni, litho: postulant.litho || "", tema: postulant.tema || "" });
 		setEditingId(postulant.id);
 		setFormVisible(true);
 	};
@@ -131,6 +81,44 @@ export default function GestPostulantes() {
 		resetForm();
 	};
 
+	const handleFileImport = async (file) => {
+		setImportMessage("");
+		if (!file) return;
+		try {
+			const XLSX = await import(/* webpackChunkName: "xlsx" */ "xlsx");
+			const data = await file.arrayBuffer();
+			const workbook = XLSX.read(data, { type: "array" });
+			const firstSheetName = workbook.SheetNames[0];
+			const worksheet = workbook.Sheets[firstSheetName];
+			const json = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+
+			// Expecting columns: DNI, NOMBRE, LITHO, TEMA (case-insensitive)
+			const rows = json.map((row, idx) => {
+				const keys = Object.keys(row);
+				const mapKey = (k) => {
+					if (!k) return "";
+					return k.toString().trim().toUpperCase();
+				};
+				const lookup = {};
+				keys.forEach((k) => (lookup[mapKey(k)] = row[k]));
+
+				return {
+					id: Date.now() + idx,
+					dni: lookup["DNI"] ? String(lookup["DNI"]).trim() : "",
+					names: lookup["NOMBRE"] ? String(lookup["NOMBRE"]).trim() : "",
+					litho: lookup["LITHO"] ? String(lookup["LITHO"]).trim() : "",
+					tema: lookup["TEMA"] ? String(lookup["TEMA"]).trim() : "",
+				};
+			});
+
+			setPostulants((current) => [...current, ...rows]);
+			setImportMessage(`Importados ${rows.length} registros correctamente.`);
+		} catch (err) {
+			console.error(err);
+			setImportMessage("Error al importar el archivo. Instala la dependencia 'xlsx' o revisa el formato.");
+		}
+	};
+
 	return (
 		<div className="dashboard-shell">
 			<Header />
@@ -138,13 +126,22 @@ export default function GestPostulantes() {
 				<div className="page-title mb-4">
 					<span className="eyebrow">Módulo 2</span>
 					<h1 className="display-6 fw-bold mb-2">Ficha de postulantes universitarios</h1>
-					<p className="text-light-emphasis mb-0">Registra, edita y elimina la información personal, académica, profesional y familiar de cada postulante.</p>
+					<p className="text-light-emphasis mb-0">Gestiona postulantes: DNI, NOMBRE, LITHO y TEMA.</p>
 				</div>
 
 				<div className="d-flex justify-content-end mb-4">
-					<button type="button" className="btn action-button action-button-primary" onClick={handleAddClick}>
-						Añadir postulante
-					</button>
+					<div className="d-flex gap-2">
+						<button type="button" className="btn action-button action-button-primary" onClick={handleAddClick}>
+							Añadir postulante
+						</button>
+						<label className="btn action-button action-button-secondary" style={{ cursor: 'pointer' }}>
+							Importar Excel
+							<input type="file" accept=".xlsx,.xls,.csv" onChange={(e) => handleFileImport(e.target.files?.[0])} style={{ display: 'none' }} />
+						</label>
+						<button type="button" className="btn action-button action-button-ghost" onClick={() => { setPostulants([]); setImportMessage(""); }}>
+							Limpiar
+						</button>
+					</div>
 				</div>
 
 				{formVisible && (
@@ -169,67 +166,13 @@ export default function GestPostulantes() {
 								<input className="form-control" name="dni" value={formData.dni} onChange={handleChange} required />
 							</div>
 							<div className="col-md-3">
-								<label className="form-label">Fecha de nacimiento</label>
-								<input className="form-control" name="birthDate" value={formData.birthDate} onChange={handleChange} placeholder="dd/mm/aaaa" required />
+								<label className="form-label">LITHO</label>
+								<input className="form-control" name="litho" value={formData.litho} onChange={handleChange} />
 							</div>
 
-							<div className="col-md-6">
-								<label className="form-label">Dirección</label>
-								<input className="form-control" name="address" value={formData.address} onChange={handleChange} required />
-							</div>
-							<div className="col-md-3">
-								<label className="form-label">Teléfono</label>
-								<input className="form-control" name="phone" value={formData.phone} onChange={handleChange} required />
-							</div>
-							<div className="col-md-3">
-								<label className="form-label">Correo</label>
-								<input className="form-control" name="email" type="email" value={formData.email} onChange={handleChange} required />
-							</div>
-
-							<div className="col-md-6">
-								<label className="form-label">Colegio de procedencia</label>
-								<input className="form-control" name="school" value={formData.school} onChange={handleChange} required />
-							</div>
-							<div className="col-md-3">
-								<label className="form-label">Año de egreso</label>
-								<input className="form-control" name="graduationYear" value={formData.graduationYear} onChange={handleChange} required />
-							</div>
-							<div className="col-md-3">
-								<label className="form-label">Modalidad de ingreso</label>
-								<input className="form-control" name="admissionMode" value={formData.admissionMode} onChange={handleChange} required />
-							</div>
-
-							<div className="col-md-6">
-								<label className="form-label">Facultad</label>
-								<select className="form-select" name="faculty" value={formData.faculty} onChange={handleFacultyChange} required>
-									<option value="">Selecciona una facultad</option>
-									{facultyList.map((faculty) => (
-										<option key={faculty} value={faculty}>
-											{faculty}
-										</option>
-									))}
-								</select>
-							</div>
-
-							<div className="col-md-6">
-								<label className="form-label">Carrera profesional</label>
-								<select className="form-select" name="career" value={formData.career} onChange={handleChange} disabled={!formData.faculty} required>
-									<option value="">Selecciona una carrera</option>
-									{getCareersByFaculty(formData.faculty).map((career) => (
-										<option key={career} value={career}>
-											{career}
-										</option>
-									))}
-								</select>
-							</div>
-
-							<div className="col-md-6">
-								<label className="form-label">Padre o tutor</label>
-								<input className="form-control" name="guardian" value={formData.guardian} onChange={handleChange} required />
-							</div>
-							<div className="col-md-6">
-								<label className="form-label">Teléfono de contacto</label>
-								<input className="form-control" name="contactPhone" value={formData.contactPhone} onChange={handleChange} required />
+							<div className="col-12">
+								<label className="form-label">TEMA</label>
+								<input className="form-control" name="tema" value={formData.tema} onChange={handleChange} />
 							</div>
 
 							<div className="col-12 d-flex gap-2 justify-content-end">
@@ -241,6 +184,12 @@ export default function GestPostulantes() {
 								</button>
 							</div>
 						</form>
+					</div>
+				)}
+
+				{importMessage && (
+					<div className="mb-3">
+						<span className="text-light-emphasis">{importMessage}</span>
 					</div>
 				)}
 
@@ -264,43 +213,13 @@ export default function GestPostulantes() {
 									</div>
 								</div>
 
-								<div className="row g-3">
-									<div className="col-lg-4">
-										<div className="glass-card p-3 h-100">
-											<h3 className="h6 mb-3">Datos Personales</h3>
-											<ul className="list-unstyled mb-0 small">
-												<li><strong>Nombres y apellidos:</strong> {postulant.names}</li>
-												<li><strong>DNI:</strong> {postulant.dni}</li>
-												<li><strong>Fecha de nacimiento:</strong> {postulant.birthDate}</li>
-												<li><strong>Dirección:</strong> {postulant.address}</li>
-												<li><strong>Teléfono:</strong> {postulant.phone}</li>
-												<li><strong>Correo:</strong> {postulant.email}</li>
-											</ul>
-										</div>
-									</div>
-
-									<div className="col-lg-4">
-										<div className="glass-card p-3 h-100">
-											<h3 className="h6 mb-3">Información Académica</h3>
-											<ul className="list-unstyled mb-0 small">
-												<li><strong>Colegio de procedencia:</strong> {postulant.school}</li>
-												<li><strong>Año de egreso:</strong> {postulant.graduationYear}</li>
-												<li><strong>Modalidad de ingreso:</strong> {postulant.admissionMode}</li>
-											</ul>
-										</div>
-									</div>
-
-									<div className="col-lg-4">
-										<div className="glass-card p-3 h-100">
-											<h3 className="h6 mb-3">Carrera y Familia</h3>
-											<ul className="list-unstyled mb-0 small">
-												<li><strong>Carrera profesional:</strong> {postulant.career}</li>
-												<li><strong>Facultad:</strong> {postulant.faculty}</li>
-												<li><strong>Padre o tutor:</strong> {postulant.guardian}</li>
-												<li><strong>Teléfono de contacto:</strong> {postulant.contactPhone}</li>
-											</ul>
-										</div>
-									</div>
+								<div className="p-3">
+									<ul className="list-unstyled mb-0">
+										<li><strong>DNI:</strong> {postulant.dni}</li>
+										<li><strong>Nombres:</strong> {postulant.names}</li>
+										<li><strong>LITHO:</strong> {postulant.litho}</li>
+										<li><strong>TEMA:</strong> {postulant.tema}</li>
+									</ul>
 								</div>
 							</article>
 						</div>

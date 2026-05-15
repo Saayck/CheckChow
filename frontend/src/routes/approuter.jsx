@@ -5,7 +5,7 @@ import GestUsuarios from "../features/modulo1/gest_usuarios/gest_usuarios";
 import Auditoria from "../features/modulo1/auditoria/auditoria";
 import GestCarreras from "../features/modulo2/gest_carreras/gest_carreras";
 import GestPostulantes from "../features/modulo2/gest_postulantes/gest_postulantes";
-import ProcesoAdmision from "../features/modulo2/proceso_adminision/proceso_admision";
+import Respuestas from "../features/modulo2/proceso_respuestas/respuestas";
 import GestResultados from "../features/modulo3/gest_resultados/gest_resultados";
 import Resultados from "../features/modulo3/resultados/resultados";
 
@@ -19,7 +19,7 @@ function AppRouter() {
         <Route path="/auditoria" element={<Auditoria />} />
         <Route path="/carreras" element={<GestCarreras />} />
         <Route path="/postulantes" element={<GestPostulantes />} />
-        <Route path="/admision" element={<ProcesoAdmision />} />
+        <Route path="/respuestas" element={<Respuestas />} />
         <Route path="/gestion-resultados" element={<GestResultados />} />
         <Route path="/resultados" element={<Resultados />} />
         <Route path="*" element={<Navigate to="/" replace />} />
