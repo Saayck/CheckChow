@@ -2,14 +2,20 @@ import Header from "../../../components/header";
 import "../../../styles/dashboard.css";
 import { useMemo, useState } from "react";
 
-const facultyOptions = {
-	Ingeniería: ["Ingeniería de Sistemas", "Ingeniería Civil", "Ingeniería Industrial"],
-	Humanidades: ["Educación", "Psicología", "Comunicación Social"],
-	Salud: ["Enfermería", "Medicina Humana", "Obstetricia"],
-	Empresariales: ["Administración", "Contabilidad", "Marketing"],
-};
+const facultyList = ["Ingeniería", "Humanidades", "Salud", "Empresariales"];
 
-const facultyList = Object.keys(facultyOptions);
+const getCareersByFaculty = (faculty) => {
+	const stored = localStorage.getItem("careersData");
+	if (stored) {
+		try {
+			const allCareers = JSON.parse(stored);
+			return allCareers.filter((c) => c.faculty === faculty).map((c) => c.name);
+		} catch {
+			return [];
+		}
+	}
+	return [];
+};
 
 const initialPostulants = [
 	{
@@ -194,23 +200,24 @@ export default function GestPostulantes() {
 							</div>
 
 							<div className="col-md-6">
-								<label className="form-label">Carrera profesional</label>
-								<select className="form-select" name="career" value={formData.career} onChange={handleChange} disabled={!formData.faculty} required>
-									<option value="">Selecciona una carrera</option>
-									{(facultyOptions[formData.faculty] || []).map((career) => (
-										<option key={career} value={career}>
-											{career}
-										</option>
-									))}
-								</select>
-							</div>
-							<div className="col-md-6">
 								<label className="form-label">Facultad</label>
 								<select className="form-select" name="faculty" value={formData.faculty} onChange={handleFacultyChange} required>
 									<option value="">Selecciona una facultad</option>
 									{facultyList.map((faculty) => (
 										<option key={faculty} value={faculty}>
 											{faculty}
+										</option>
+									))}
+								</select>
+							</div>
+
+							<div className="col-md-6">
+								<label className="form-label">Carrera profesional</label>
+								<select className="form-select" name="career" value={formData.career} onChange={handleChange} disabled={!formData.faculty} required>
+									<option value="">Selecciona una carrera</option>
+									{getCareersByFaculty(formData.faculty).map((career) => (
+										<option key={career} value={career}>
+											{career}
 										</option>
 									))}
 								</select>
