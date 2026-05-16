@@ -6,8 +6,8 @@ const navItems = [
 	{ to: "/panel", label: "Inicio", icon: "bi-grid-1x2" },
 	{ to: "/usuarios", label: "Usuarios", icon: "bi-people" },
 	{ to: "/postulantes", label: "Postulantes", icon: "bi-person-vcard" },
-	{ to: "/carreras", label: "Carreras", icon: "bi-journal-bookmark" },
-	{ to: "/respuestas", label: "Respuestas", icon: "bi-diagram-3" },
+	{ to: "/respuestas_postulantes", label: "Respuestas", icon: "bi-diagram-3" },
+	{ to: "/respuestas", label: "Claves", icon: "bi-diagram-3" },
 	{ to: "/resultados", label: "Resultados", icon: "bi-clipboard-data" },
 	{ to: "/auditoria", label: "Auditoría", icon: "bi-shield-check" },
 ];
