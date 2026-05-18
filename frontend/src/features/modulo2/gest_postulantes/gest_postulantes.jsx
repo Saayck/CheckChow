@@ -84,30 +84,94 @@ export default function GestPostulantes() {
 	const handleFileImport = async (file) => {
 		setImportMessage("");
 		if (!file) return;
-		try {
-			const XLSX = await import(/* webpackChunkName: "xlsx" */ "xlsx");
-			const data = await file.arrayBuffer();
-			const workbook = XLSX.read(data, { type: "array" });
-			const firstSheetName = workbook.SheetNames[0];
-			const worksheet = workbook.Sheets[firstSheetName];
-			const json = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+		// Helper: simple DBF parser (browser-safe) as fallback
+		const parseDbf = (arrayBuffer) => {
+			const decoder = new TextDecoder('latin1');
+			const view = new DataView(arrayBuffer);
+			const recordCount = view.getUint32(4, true);
+			const headerLength = view.getUint16(8, true);
+			const recordLength = view.getUint16(10, true);
+			let offset = 32;
+			const fields = [];
+			while (new Uint8Array(arrayBuffer, offset, 1)[0] !== 0x0D) {
+				const nameBytes = new Uint8Array(arrayBuffer, offset, 11);
+				const name = decoder.decode(nameBytes).replace(/\0/g, '').trim();
+				const type = decoder.decode(new Uint8Array(arrayBuffer, offset + 11, 1));
+				const length = new Uint8Array(arrayBuffer, offset + 16, 1)[0];
+				const decimal = new Uint8Array(arrayBuffer, offset + 17, 1)[0];
+				fields.push({ name, type, length, decimal });
+				offset += 32;
+			}
 
-			// Se esperan las columnas: DNI, NOMBRE, LITHO, TEMA, sin distinguir mayusculas.
+			const records = [];
+			let recordStart = headerLength;
+			for (let i = 0; i < recordCount; i++) {
+				const recOffset = recordStart + i * recordLength;
+				const deletionFlag = new Uint8Array(arrayBuffer, recOffset, 1)[0];
+				if (deletionFlag === 0x2A) continue; // deleted
+				let fieldOffset = recOffset + 1;
+				const rec = {};
+				for (const f of fields) {
+					const raw = new Uint8Array(arrayBuffer, fieldOffset, f.length);
+					const text = decoder.decode(raw).trim();
+					switch (f.type) {
+						case 'C':
+							rec[f.name] = text;
+							break;
+						case 'N':
+							rec[f.name] = text === '' ? null : Number(text.trim());
+							break;
+						case 'D':
+							rec[f.name] = text.length === 8 ? `${text.slice(0, 4)}-${text.slice(4, 6)}-${text.slice(6, 8)}` : text;
+							break;
+						case 'L':
+							rec[f.name] = ['Y', 'y', 'T', 't'].includes(text[0]);
+							break;
+						default:
+							rec[f.name] = text;
+					}
+					fieldOffset += f.length;
+				}
+				records.push(rec);
+			}
+			return records;
+		};
+
+		try {
+			const data = await file.arrayBuffer();
+			let json = null;
+			try {
+				const lib = await import(/* webpackChunkName: "dbf" */ "dbf");
+				if (lib) {
+					// attempt common APIs, otherwise fallback
+					if (typeof lib.parse === 'function') {
+						json = lib.parse(data) || [];
+					} else if (typeof lib.default === 'function') {
+						json = lib.default(data) || [];
+					}
+				}
+			} catch (e) {
+				// library not available or failed to parse; use fallback
+				json = null;
+			}
+
+			if (!json) {
+				json = parseDbf(data);
+			}
+
+			// Normalizar campos: DNI, NOMBRE, LITHO, TEMA (mayúsculas indiferente)
 			const rows = json.map((row, idx) => {
-				const keys = Object.keys(row);
-				const mapKey = (k) => {
-					if (!k) return "";
-					return k.toString().trim().toUpperCase();
-				};
+				const keys = Object.keys(row || {});
+				const mapKey = (k) => (k ? k.toString().trim().toUpperCase() : '');
 				const lookup = {};
 				keys.forEach((k) => (lookup[mapKey(k)] = row[k]));
 
 				return {
 					id: Date.now() + idx,
-					dni: lookup["DNI"] ? String(lookup["DNI"]).trim() : "",
-					names: lookup["NOMBRE"] ? String(lookup["NOMBRE"]).trim() : "",
-					litho: lookup["LITHO"] ? String(lookup["LITHO"]).trim() : "",
-					tema: lookup["TEMA"] ? String(lookup["TEMA"]).trim() : "",
+					dni: lookup['DNI'] ? String(lookup['DNI']).trim() : '',
+					names: lookup['NOMBRE'] ? String(lookup['NOMBRE']).trim() : '',
+					litho: lookup['LITHO'] ? String(lookup['LITHO']).trim() : '',
+					tema: lookup['TEMA'] ? String(lookup['TEMA']).trim() : '',
 				};
 			});
 
@@ -115,7 +179,7 @@ export default function GestPostulantes() {
 			setImportMessage(`Importados ${rows.length} registros correctamente.`);
 		} catch (err) {
 			console.error(err);
-			setImportMessage("Error al importar el archivo. Instala la dependencia 'xlsx' o revisa el formato.");
+			setImportMessage("Error al importar el archivo. Usa un DBF válido o instala la dependencia 'dbf'.");
 		}
 	};
 
@@ -135,8 +199,8 @@ export default function GestPostulantes() {
 							Añadir postulante
 						</button>
 						<label className="btn action-button action-button-secondary" style={{ cursor: 'pointer' }}>
-							Importar Excel
-							<input type="file" accept=".xlsx,.xls,.csv" onChange={(e) => handleFileImport(e.target.files?.[0])} style={{ display: 'none' }} />
+							Importar DBF
+							<input type="file" accept=".dbf" onChange={(e) => handleFileImport(e.target.files?.[0])} style={{ display: 'none' }} />
 						</label>
 						<button type="button" className="btn action-button action-button-ghost" onClick={() => { setPostulants([]); setImportMessage(""); }}>
 							Limpiar
