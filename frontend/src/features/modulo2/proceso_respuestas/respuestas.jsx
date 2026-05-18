@@ -26,7 +26,7 @@ export default function Respuestas() {
 		if (raw == null) return "";
 		const s = String(raw).trim();
 		if (s === "") return "";
-		// Accept only alternatives A-E (case-insensitive). Examples: "C", "C,1", "C - 1" -> "C"
+		// Acepta solo alternativas A-E sin distinguir mayusculas. Ejemplos: "C", "C,1", "C - 1" -> "C"
 		const m = s.match(/[A-Ea-e]/);
 		return m ? m[0].toUpperCase() : "";
 	};
@@ -42,10 +42,10 @@ export default function Respuestas() {
 			const worksheet = workbook.Sheets[firstSheet];
 			const rows = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
 
-			// Each row expected to have: TEMA and PREG_001..PREG_100 (or similar)
+			// Se espera que cada fila tenga: TEMA y PREG_001..PREG_100 (o nombres similares).
 			const parsed = rows.map((row, idx) => {
-				// normalize keys: if header is like "TEMA,C,1" or "PREG_001,C,1",
-				// take the first token before commas/semicolons and uppercase it
+				// Normaliza encabezados: si son como "TEMA,C,1" o "PREG_001,C,1",
+				// toma el primer token antes de comas/punto y coma y lo convierte a mayusculas.
 				const lookup = {};
 				Object.keys(row).forEach((k) => {
 					const rawKey = String(k || "").trim();

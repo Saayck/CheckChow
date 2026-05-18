@@ -19,7 +19,7 @@ const setFavicon = (href) => {
     link.type = 'image/png';
     link.href = href;
   } catch (e) {
-    // fallback: ignore
+    // Respaldo: ignorar
   }
 };
 
@@ -32,7 +32,7 @@ root.render(
   </React.StrictMode>
 );
 
-// If you want to start measuring performance in your app, pass a function
-// to log results (for example: reportWebVitals(console.log))
-// or send to an analytics endpoint. Learn more: https://bit.ly/CRA-vitals
+// Si quieres medir el rendimiento de la app, pasa una funcion
+// para registrar resultados (por ejemplo: reportWebVitals(console.log))
+// o enviarlos a un endpoint de analitica. Mas informacion: https://bit.ly/CRA-vitals
 reportWebVitals();

@@ -197,7 +197,7 @@ export default function GestUsuarios() {
 				</div>
 			</main>
 
-				{/* Modal */}
+				{/* Ventana modal */}
 			{showModal && (
 				<div className="modal d-block custom-modal-backdrop">
 					<div className="modal-dialog modal-dialog-centered">

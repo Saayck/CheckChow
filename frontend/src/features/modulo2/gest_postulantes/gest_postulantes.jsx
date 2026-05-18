@@ -23,7 +23,7 @@ export default function GestPostulantes() {
 	const [formData, setFormData] = useState(emptyForm);
 	const [importMessage, setImportMessage] = useState("");
 
-	// persist postulants
+	// Persiste postulantes.
 	useEffect(() => {
 		try {
 			localStorage.setItem("postulantsData", JSON.stringify(postulants));
@@ -92,7 +92,7 @@ export default function GestPostulantes() {
 			const worksheet = workbook.Sheets[firstSheetName];
 			const json = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
 
-			// Expecting columns: DNI, NOMBRE, LITHO, TEMA (case-insensitive)
+			// Se esperan las columnas: DNI, NOMBRE, LITHO, TEMA, sin distinguir mayusculas.
 			const rows = json.map((row, idx) => {
 				const keys = Object.keys(row);
 				const mapKey = (k) => {
