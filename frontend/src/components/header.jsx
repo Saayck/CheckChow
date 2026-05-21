@@ -8,7 +8,11 @@ const navItems = [
 	{ to: "/postulantes", label: "Postulantes", icon: "bi-person-vcard" },
 	{ to: "/respuestas_postulantes", label: "Respuestas", icon: "bi-diagram-3" },
 	{ to: "/respuestas", label: "Claves", icon: "bi-diagram-3" },
+	{ to: "/configuracion-calificacion", label: "Calificación", icon: "bi-sliders" },
 	{ to: "/resultados", label: "Resultados", icon: "bi-clipboard-data" },
+	{ to: "/exportar-resultados", label: "Exportar", icon: "bi-download" },
+	{ to: "/resultados-oficiales", label: "PDF Oficial", icon: "bi-file-earmark-pdf" },
+	{ to: "/plazas", label: "Plazas", icon: "bi-list-ol" },
 	{ to: "/auditoria", label: "Auditoría", icon: "bi-shield-check" },
 ];
 

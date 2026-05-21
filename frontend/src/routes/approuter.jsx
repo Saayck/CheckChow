@@ -8,6 +8,10 @@ import GestPostulantes from "../features/modulo2/gest_postulantes/gest_postulant
 import Respuestas from "../features/modulo2/proceso_respuestas/respuestas";
 import GestResultados from "../features/modulo3/gest_resultados/gest_resultados";
 import Resultados from "../features/modulo3/resultados/resultados";
+import ConfiguracionCalificacion from "../features/modulo3/configuracion_calificacion/configuracion_calificacion";
+import ExportarResultados from "../features/modulo3/exportar_resultados/exportar_resultados";
+import ResultadosOficiales from "../features/modulo3/resultados_oficiales/resultados_oficiales";
+import Plazas from "../features/modulo3/plazas/plazas";
 
 function AppRouter() {
   return (
@@ -22,6 +26,10 @@ function AppRouter() {
         <Route path="/respuestas" element={<Respuestas />} />
         <Route path="/gestion-resultados" element={<GestResultados />} />
         <Route path="/resultados" element={<Resultados />} />
+        <Route path="/configuracion-calificacion" element={<ConfiguracionCalificacion />} />
+        <Route path="/exportar-resultados" element={<ExportarResultados />} />
+        <Route path="/resultados-oficiales" element={<ResultadosOficiales />} />
+        <Route path="/plazas" element={<Plazas />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

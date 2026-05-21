@@ -1,6 +1,6 @@
 import Header from "../../../components/header";
 import "../../../styles/dashboard.css";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const STORAGE_KEY = "studentResponsesData";
 const POSTULANTS_KEY = "postulantsData";
@@ -75,11 +75,50 @@ export default function GestRespPost() {
 		} catch {}
 	}, []);
 
-	const postulantIndex = useMemo(() => buildPostulantIndex(postulants), [postulants]);
+
 
 	const handleFileImport = async (file) => {
 		setMessage("");
 		if (!file) return;
+
+		const ext = file.name.split('.').pop().toLowerCase();
+
+		if (ext === 'xlsx' || ext === 'xls') {
+			try {
+				const currentPostulants = getStoredJson(POSTULANTS_KEY, []);
+				const freshIndex = buildPostulantIndex(currentPostulants);
+				const { read, utils } = await import('xlsx');
+				const data = await file.arrayBuffer();
+				const workbook = read(data, { type: 'array' });
+				const sheet = workbook.Sheets[workbook.SheetNames[0]];
+				const json = utils.sheet_to_json(sheet, { defval: '' });
+
+				let imported = 0, skipped = 0;
+				const validRows = [];
+				json.forEach((row, index) => {
+					const lookup = {};
+					Object.keys(row).forEach((k) => (lookup[String(k).trim().toUpperCase()] = row[k]));
+					const litho = normalizeMatchValue(lookup['LITHO'] ?? '');
+					const tema = normalizeMatchValue(lookup['TEMA'] ?? '');
+					const match = litho && tema ? freshIndex.get(`${litho}__${tema}`) : null;
+					if (!match) { skipped++; return; }
+					const answers = {};
+					for (let i = 1; i <= 100; i++) {
+						const q = `PREG_${String(i).padStart(3, '0')}`;
+						answers[q] = parseAlternative(lookup[q] ?? '');
+					}
+					validRows.push({ id: Date.now() + index, litho, tema, postulantId: match.id, postulantName: match.names, answers });
+					imported++;
+				});
+				setResponses((current) => [...current, ...validRows]);
+				setSelectedId(validRows[0]?.id ?? null);
+				setMessage(`Importados ${imported} registro(s) desde Excel. Omitidos: ${skipped}.`);
+			} catch (err) {
+				console.error(err);
+				setMessage("Error al importar el Excel.");
+			}
+			return;
+		}
 
 		// Helper: simple DBF parser (browser-safe)
 		const parseDbf = (arrayBuffer) => {
@@ -216,6 +255,13 @@ export default function GestRespPost() {
 	};
 
 	const selectedResponse = responses.find((item) => item.id === selectedId) || null;
+	const detalleRef = useRef(null);
+
+	useEffect(() => {
+		if (selectedId && detalleRef.current) {
+			detalleRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+		}
+	}, [selectedId]);
 
 	return (
 		<div className="dashboard-shell">
@@ -232,8 +278,8 @@ export default function GestRespPost() {
 
 				<div className="d-flex flex-wrap justify-content-end gap-2 mb-4">
 					<label className="btn action-button action-button-secondary" style={{ cursor: "pointer" }}>
-						Importar DBF
-						<input type="file" accept=".dbf" onChange={(e) => handleFileImport(e.target.files?.[0])} style={{ display: "none" }} />
+						Importar DBF / Excel
+						<input type="file" accept=".dbf,.xlsx,.xls" onChange={(e) => handleFileImport(e.target.files?.[0])} style={{ display: "none" }} />
 					</label>
 					<button type="button" className="btn action-button action-button-ghost" onClick={handleClear}>
 						Limpiar
@@ -247,7 +293,7 @@ export default function GestRespPost() {
 				)}
 
 				<div className="row g-4">
-					<div className="col-12 col-lg-5">
+					<div className="col-12 col-lg-5 order-1 order-lg-0">
 						<div className="glass-card p-4 h-100">
 							<div className="d-flex justify-content-between align-items-center mb-3">
 								<h2 className="h5 mb-0">Respuestas registradas</h2>
@@ -282,7 +328,7 @@ export default function GestRespPost() {
 						</div>
 					</div>
 
-					<div className="col-12 col-lg-7">
+					<div className="col-12 col-lg-7 order-0 order-lg-1" ref={detalleRef}>
 						<div className="glass-card p-4 h-100">
 							<h2 className="h5 mb-3">Detalle de respuestas</h2>
 							{selectedResponse ? (

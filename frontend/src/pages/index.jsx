@@ -1,17 +1,15 @@
 import { Link } from "react-router-dom";
+import { useMemo } from "react";
 import Header from "../components/header";
 import "../styles/dashboard.css";
 
-const metrics = [
-	{ label: "Exámenes procesados", value: "12.480", trend: "+14% este mes", icon: "bi-clipboard-check" },
-	{ label: "Postulantes activos", value: "3.214", trend: "+8% esta semana", icon: "bi-person-check" },
-	{ label: "Carreras habilitadas", value: "28", trend: "2 nuevas este ciclo", icon: "bi-mortarboard" },
-	{ label: "Auditorías cerradas", value: "94%", trend: "SLA dentro del objetivo", icon: "bi-shield-check" },
-];
+const getStored = (key) => {
+	try { return JSON.parse(localStorage.getItem(key) || "[]"); } catch { return []; }
+};
 
 const quickActions = [
 	{ to: "/postulantes", title: "Registrar postulante", icon: "bi-person-plus", text: "Crea un nuevo registro y valida sus datos." },
-	{ to: "/admision", title: "Procesar admisión", icon: "bi-diagram-3", text: "Simula lotes, estados y observaciones." },
+	{ to: "/respuestas_postulantes", title: "Importar respuestas", icon: "bi-diagram-3", text: "Carga respuestas de postulantes desde DBF o Excel." },
 	{ to: "/resultados", title: "Ver resultados", icon: "bi-graph-up-arrow", text: "Consulta notas, promedio y distribución." },
 ];
 
@@ -23,6 +21,17 @@ const recentAdmissions = [
 ];
 
 function DashboardPage() {
+	const postulants = useMemo(() => getStored("postulantsData"), []);
+	const studentResponses = useMemo(() => getStored("studentResponsesData"), []);
+	const keys = useMemo(() => getStored("responsesData"), []);
+
+	const metrics = [
+		{ label: "Respuestas procesadas", value: studentResponses.length.toLocaleString("es-PE"), trend: "Del archivo RESPUEST.DBF", icon: "bi-clipboard-check" },
+		{ label: "Postulantes registrados", value: postulants.length.toLocaleString("es-PE"), trend: "De postulantes importados", icon: "bi-person-check" },
+		{ label: "Claves cargadas", value: keys.length.toLocaleString("es-PE"), trend: "Del archivo CLAVES.DBF", icon: "bi-key" },
+		{ label: "Auditorías cerradas", value: "94%", trend: "SLA dentro del objetivo", icon: "bi-shield-check" },
+	];
+
 	return (
 		<div className="dashboard-shell">
 			<Header />

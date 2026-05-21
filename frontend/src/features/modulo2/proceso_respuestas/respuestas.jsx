@@ -1,6 +1,6 @@
 import Header from "../../../components/header";
 import "../../../styles/dashboard.css";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 const STORAGE_KEY = "responsesData";
 
@@ -15,12 +15,19 @@ export default function Respuestas() {
 	});
 	const [message, setMessage] = useState("");
 	const [selectedIndex, setSelectedIndex] = useState(null);
+	const detalleRef = useRef(null);
 
 	useEffect(() => {
 		try {
 			localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
 		} catch {}
 	}, [items]);
+
+	useEffect(() => {
+		if (selectedIndex !== null && detalleRef.current) {
+			detalleRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+		}
+	}, [selectedIndex]);
 
 	const parseAnswer = (raw) => {
 		if (raw == null) return "";
@@ -34,6 +41,35 @@ export default function Respuestas() {
 	const handleFileImport = async (file) => {
 		setMessage("");
 		if (!file) return;
+
+		const ext = file.name.split('.').pop().toLowerCase();
+
+		if (ext === 'xlsx' || ext === 'xls') {
+			try {
+				const { read, utils } = await import('xlsx');
+				const data = await file.arrayBuffer();
+				const workbook = read(data, { type: 'array' });
+				const sheet = workbook.Sheets[workbook.SheetNames[0]];
+				const json = utils.sheet_to_json(sheet, { defval: '' });
+				const parsed = json.map((row, idx) => {
+					const lookup = {};
+					Object.keys(row).forEach((k) => (lookup[String(k).trim().toUpperCase()] = row[k]));
+					const tema = String(lookup['TEMA'] ?? lookup['TEMAS'] ?? '').trim().toUpperCase();
+					const answers = {};
+					for (let i = 1; i <= 100; i++) {
+						const q = `PREG_${String(i).padStart(3, '0')}`;
+						answers[q] = parseAnswer(lookup[q] ?? '');
+					}
+					return { id: Date.now() + idx, tema, answers };
+				});
+				setItems((cur) => [...cur, ...parsed]);
+				setMessage(`Importados ${parsed.length} clave(s) desde Excel.`);
+			} catch (err) {
+				console.error(err);
+				setMessage("Error al importar el Excel.");
+			}
+			return;
+		}
 
 		// Helper: simple DBF parser (browser-safe)
 		const parseDbf = (arrayBuffer) => {
@@ -156,14 +192,14 @@ export default function Respuestas() {
 				<div className="page-title mb-4">
 					<span className="eyebrow">Módulo 2</span>
 					<h1 className="display-6 fw-bold mb-2">Importar respuestas (clave)</h1>
-					<p className="text-light-emphasis mb-0">Importa un archivo Excel con columnas TEMA y PREG_001..PREG_100. Cada celda puede contener la alternativa correcta (ej. "C" o "C,1").</p>
+					<p className="text-light-emphasis mb-0">Importa CLAVES.DBF, claves.xls o un Excel con columnas TEMA y PREG_001..PREG_100. Cada celda contiene la alternativa correcta (ej. "C" o "C,1").</p>
 				</div>
 
 				<div className="d-flex justify-content-end mb-4">
 					<div className="d-flex gap-2">
 						<label className="btn action-button action-button-secondary" style={{ cursor: "pointer" }}>
-							Importar DBF
-							<input type="file" accept=".dbf" onChange={(e) => handleFileImport(e.target.files?.[0])} style={{ display: 'none' }} />
+							Importar DBF / Excel
+							<input type="file" accept=".dbf,.xlsx,.xls" onChange={(e) => handleFileImport(e.target.files?.[0])} style={{ display: 'none' }} />
 						</label>
 						<button className="btn action-button action-button-ghost" onClick={() => { setItems([]); setMessage(""); }}>
 							Limpiar
@@ -204,17 +240,52 @@ export default function Respuestas() {
 				</div>
 
 				{selectedIndex != null && items[selectedIndex] && (
-					<div className="glass-card p-3 mt-4">
-						<h4 className="h6">Detalle: {(items[selectedIndex].tema && String(items[selectedIndex].tema).toUpperCase()) || `Clave ${selectedIndex + 1}`}</h4>
-						<div style={{ overflowX: "auto", fontFamily: "monospace", fontSize: 13 }}>
-							{Object.entries(items[selectedIndex].answers).map(([q, a]) => (
-								<div key={q} style={{ display: "inline-block", minWidth: 110, padding: 6 }}>
-									<strong>{q}</strong>: {a || "-"}
-								</div>
-							))}
+					<div className="glass-card p-4 mt-4" ref={detalleRef}>
+						<div className="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+							<div>
+								<p className="section-kicker mb-1">Clave de respuestas</p>
+								<h4 className="h5 mb-0">{(items[selectedIndex].tema && String(items[selectedIndex].tema).toUpperCase()) || `Clave ${selectedIndex + 1}`}</h4>
+							</div>
+							<div className="d-flex align-items-center gap-3">
+								<span className="text-light-emphasis" style={{ fontSize: "0.85rem" }}>
+									{Object.values(items[selectedIndex].answers).filter(Boolean).length} / 100 respuestas
+								</span>
+								<button className="btn action-button action-button-ghost action-button-sm" onClick={() => setSelectedIndex(null)}>
+									Cerrar
+								</button>
+							</div>
 						</div>
-						<div className="mt-3">
-							<button className="btn action-button action-button-ghost" onClick={() => setSelectedIndex(null)}>Cerrar detalle</button>
+						<div className="table-responsive">
+							<table className="table table-dark table-borderless mb-0" style={{ fontSize: "0.82rem" }}>
+								<thead>
+									<tr>
+										{[...Array(10)].map((_, col) => (
+											<th key={col} className="text-center" style={{ color: "#64748b", fontWeight: 600 }}>
+												{col * 10 + 1}–{col * 10 + 10}
+											</th>
+										))}
+									</tr>
+								</thead>
+								<tbody>
+									{[...Array(10)].map((_, row) => (
+										<tr key={row}>
+											{[...Array(10)].map((_, col) => {
+												const idx = row * 10 + col;
+												const q = `PREG_${String(idx + 1).padStart(3, "0")}`;
+												const a = items[selectedIndex].answers[q];
+												return (
+													<td key={col} className="text-center p-2">
+														<div style={{ fontSize: "0.72rem", color: "#64748b", marginBottom: 2 }}>{idx + 1}</div>
+														<strong style={{ color: a ? "#f8fafc" : "#475569", fontSize: "0.95rem" }}>
+															{a || "—"}
+														</strong>
+													</td>
+												);
+											})}
+										</tr>
+									))}
+								</tbody>
+							</table>
 						</div>
 					</div>
 				)}
