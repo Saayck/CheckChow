@@ -8,7 +8,7 @@ import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 
 import checkchow.back.admision.entity.ProcesoAdmision;
-import checkchow.back.usuarios.entity.Usuario;
+import checkchow.back.user.Usuario;
 
 @Data
 @AllArgsConstructor

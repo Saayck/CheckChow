@@ -2,7 +2,7 @@ package checkchow.back.seguridad.entity;
 
 import checkchow.back.enums.TAccion;
 import checkchow.back.enums.TMetodoHttp;
-import checkchow.back.usuarios.entity.Usuario;
+import checkchow.back.user.Usuario;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;

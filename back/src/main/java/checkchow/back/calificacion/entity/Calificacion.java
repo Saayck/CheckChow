@@ -6,10 +6,9 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
-
 import checkchow.back.admision.entity.ProcesoAdmision;
 import checkchow.back.postulante.entity.FichaAlumno;
-import checkchow.back.usuarios.entity.Usuario;
+import checkchow.back.user.Usuario;
 
 @Data
 @AllArgsConstructor
