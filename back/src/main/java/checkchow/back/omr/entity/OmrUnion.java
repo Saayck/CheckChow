@@ -5,7 +5,8 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import java.time.OffsetDateTime;
-import checkchow.back.entity.Usuario;
+
+import checkchow.back.usuarios.entity.Usuario;
 
 @Data
 @AllArgsConstructor

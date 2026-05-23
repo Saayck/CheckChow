@@ -6,7 +6,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import java.time.OffsetDateTime;
 
-import checkchow.back.entity.ProcesoAdmision;
+import checkchow.back.admision.entity.ProcesoAdmision;
 
 @Data
 @AllArgsConstructor

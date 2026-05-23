@@ -4,10 +4,10 @@ import java.util.Optional;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
-import checkchow.back.entity.Postulante;
 import checkchow.back.omr.entity.*;
 import checkchow.back.omr.repository.*;
-import checkchow.back.repositories.PostulanteRepository;
+import checkchow.back.postulante.entity.Postulante;
+import checkchow.back.postulante.repository.PostulanteRepository;
 
 @Service
 @RequiredArgsConstructor
