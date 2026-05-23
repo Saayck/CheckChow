@@ -1,5 +1,6 @@
 package checkchow.back.calificacion.entity;
 
+import checkchow.back.user.Usuario;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -8,7 +9,6 @@ import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 
 import checkchow.back.admision.entity.ProcesoAdmision;
-import checkchow.back.usuarios.entity.Usuario;
 
 @Data
 @AllArgsConstructor

@@ -2,7 +2,7 @@ package checkchow.back.admision.entity;
 
 import checkchow.back.calificacion.entity.Calificacion;
 import checkchow.back.enums.TCondicion;
-import checkchow.back.usuarios.entity.Usuario;
+import checkchow.back.user.Usuario;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;

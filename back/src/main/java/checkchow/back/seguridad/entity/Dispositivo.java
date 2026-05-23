@@ -1,12 +1,11 @@
 package checkchow.back.seguridad.entity;
 
+import checkchow.back.user.Usuario;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import java.time.OffsetDateTime;
-
-import checkchow.back.usuarios.entity.Usuario;
 
 @Data
 @AllArgsConstructor
