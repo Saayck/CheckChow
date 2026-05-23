@@ -2,6 +2,7 @@ package checkchow.back.entity;
 
 import checkchow.back.enums.TAccion;
 import checkchow.back.enums.TMetodoHttp;
+import checkchow.back.user.Usuario;
 import jakarta.persistence.*;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;

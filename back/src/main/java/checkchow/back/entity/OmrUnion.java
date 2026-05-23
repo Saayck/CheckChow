@@ -1,5 +1,6 @@
 package checkchow.back.entity;
 
+import checkchow.back.user.Usuario;
 import jakarta.persistence.*;
 import java.time.OffsetDateTime;
 
