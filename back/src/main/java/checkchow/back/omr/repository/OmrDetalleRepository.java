@@ -1,10 +1,11 @@
-package checkchow.back.repositories;
+package checkchow.back.omr.repository;
 
-import checkchow.back.entity.OmrDetalle;
+import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
+import checkchow.back.omr.entity.OmrDetalle;
 
 @Repository
 public interface OmrDetalleRepository extends JpaRepository<OmrDetalle, Integer> {
+    Optional<OmrDetalle> findByLithocode(String lithocode);
 }
-
