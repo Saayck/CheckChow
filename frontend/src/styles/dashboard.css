@@ -13,6 +13,10 @@
   border-bottom: 1px solid rgba(148, 163, 184, 0.12);
 }
 
+.dashboard-navbar .navbar-collapse {
+  flex-grow: 0;
+}
+
 .brand-mark {
   width: 52px;
   height: 52px;
@@ -349,12 +353,178 @@
   color: #7dd3fc;
 }
 
+@media (max-width: 1199.98px) {
+  .page-title {
+    flex-wrap: wrap;
+    gap: 1rem;
+  }
+}
+
 @media (max-width: 991.98px) {
+  .dashboard-navbar .navbar-collapse {
+    padding-top: 1rem;
+    width: 100%;
+    flex-basis: 100%;
+    max-height: calc(100vh - 72px);
+    overflow-y: auto;
+  }
+
+  .dashboard-navbar .navbar-nav {
+    width: 100%;
+    align-items: stretch !important;
+  }
+
+  .dashboard-navbar .nav-item,
+  .dashboard-navbar .btn {
+    width: 100%;
+  }
+
+  .dashboard-navbar .nav-link,
+  .dashboard-navbar .btn {
+    justify-content: center;
+  }
+
   .hero-panel {
     padding: 1.4rem;
   }
 
   .brand-copy small {
     display: none;
+  }
+
+  .page-title {
+    flex-direction: column;
+    align-items: flex-start !important;
+  }
+
+  .page-title > div,
+  .page-title > button {
+    width: 100%;
+  }
+
+  .page-title .btn,
+  .page-title .btn-glass {
+    width: 100%;
+  }
+
+  .metric-value {
+    font-size: 1.75rem;
+  }
+
+  .metric-icon,
+  .quick-action-icon {
+    width: 46px;
+    height: 46px;
+    border-radius: 14px;
+  }
+
+  .step-number {
+    width: 46px;
+    height: 46px;
+    border-radius: 14px;
+  }
+
+  .action-button-success {
+    min-width: 0;
+  }
+
+  .modal-dialog {
+    margin: 0.75rem;
+  }
+
+  .custom-modal-content,
+  .modal-content {
+    border-radius: 22px !important;
+  }
+}
+
+@media (max-width: 767.98px) {
+  .dashboard-shell {
+    background-attachment: scroll;
+  }
+
+  .dashboard-navbar .container-fluid {
+    padding-left: 1rem;
+    padding-right: 1rem;
+    align-items: flex-start;
+  }
+
+  .dashboard-navbar .navbar-brand {
+    gap: 0.75rem !important;
+    min-width: 0;
+    max-width: calc(100% - 3.25rem);
+    align-items: center;
+  }
+
+  .brand-mark {
+    width: 44px;
+    height: 44px;
+    border-radius: 14px;
+  }
+
+  .brand-copy {
+    min-width: 0;
+  }
+
+  .brand-copy strong,
+  .brand-copy small {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .brand-copy small {
+    max-width: 12rem;
+  }
+
+  .hero-panel,
+  .glass-card,
+  .postulant-form-card {
+    padding: 1.1rem !important;
+    border-radius: 22px;
+  }
+
+  .dashboard-table {
+    font-size: 0.92rem;
+  }
+
+  .dashboard-table thead th,
+  .dashboard-table tbody td,
+  .dashboard-table tfoot td {
+    padding-top: 0.75rem;
+    padding-bottom: 0.75rem;
+  }
+
+  .quick-action {
+    gap: 0.85rem;
+    padding: 0.9rem 1rem;
+  }
+
+  .glass-card .d-flex.justify-content-between.align-items-center,
+  .glass-card .d-flex.justify-content-between.align-items-start {
+    flex-direction: column;
+    align-items: flex-start !important;
+    gap: 0.75rem;
+  }
+
+  .glass-card .badge,
+  .glass-card .status-pill {
+    align-self: flex-start;
+  }
+
+  .action-button,
+  .action-button-secondary,
+  .action-button-ghost,
+  .action-button-primary,
+  .action-button-success {
+    width: 100%;
+  }
+
+  .d-flex.align-items-center.gap-3.flex-wrap {
+    align-items: stretch !important;
+  }
+
+  .d-flex.align-items-center.gap-3.flex-wrap > * {
+    width: 100%;
   }
 }
