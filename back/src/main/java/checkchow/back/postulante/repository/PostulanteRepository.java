@@ -8,8 +8,8 @@ import checkchow.back.postulante.entity.Postulante;
 
 @Repository
 public interface PostulanteRepository extends JpaRepository<Postulante, Integer> {
-    Postulante findByDni(String dni);
 
-    Optional<Postulante> findByCodPostulante(String codPostulante);
+    Optional<Postulante> findByDni(String dni);
+    Optional<Postulante> findByCodPostulante( String codPostulante);
 
 }
