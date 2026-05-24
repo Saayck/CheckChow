@@ -45,11 +45,10 @@ public class UsuarioService {
                 .getContext()
                 .getAuthentication();
 
-        String username = auth.getName();
+        String email = auth.getName();
 
         return usuarioRepo
-                .findByUsername(
-                        username)
+                .findByEmail(email)
                 .orElseThrow(() -> new RuntimeException(
                         "Usuario no encontrado"));
     }

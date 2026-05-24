@@ -7,6 +7,7 @@ import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import checkchow.back.admision.entity.ProcesoAdmision;
 import checkchow.back.admision.repository.ProcesoAdmisionRepository;
+import checkchow.back.enums.TEstadoProceso;
 import checkchow.back.user.Usuario;
 import checkchow.back.user.UsuarioService;
 
@@ -33,17 +34,21 @@ public class ProcesoAdmisionService {
         }
 
         public ProcesoAdmision crear(ProcesoAdmision proceso) {
-                if (procesoRepository.findByCodigo( proceso.getCodigo()).isPresent()) {
+                if (procesoRepository.findByCodigo(proceso.getCodigo()).isPresent()) {
                         throw new RuntimeException("Código ya registrado");
                 }
-                if (procesoRepository.findByAnioAndPeriodo(proceso.getAnio(),proceso.getPeriodo()).isPresent()) {
+                if (procesoRepository.findByAnioAndPeriodo(proceso.getAnio(), proceso.getPeriodo()).isPresent()) {
                         throw new RuntimeException(
-                        "Proceso ya existe para año y periodo");
+                                        "Proceso ya existe para año y periodo");
                 }
 
                 Usuario usuarioSesion = usuarioService
                                 .obtenerUsuarioSesion();
 
+                if (proceso.getEstado() == null) {
+                        proceso.setEstado(
+                                        TEstadoProceso.CONFIGURACION);
+                }
                 proceso.setCreadoPor(
                                 usuarioSesion);
 
