@@ -1,24 +1,31 @@
 package checkchow.back.auth;
 
-import checkchow.back.auth.dto.AuthRequest;
-import checkchow.back.auth.dto.AuthResponse;
-import checkchow.back.user.Usuario;
-import checkchow.back.user.UsuarioRepository;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
-import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.SignatureAlgorithm;
-import io.jsonwebtoken.security.Keys;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
-import javax.crypto.SecretKey;
+import checkchow.back.auth.dto.AuthRequest;
+import checkchow.back.auth.dto.AuthResponse;
+import checkchow.back.enums.TAccion;
+import checkchow.back.enums.TMetodoHttp;
+import checkchow.back.seguridad.entity.Sesion;
+import checkchow.back.seguridad.service.AuditoriaService;
+import checkchow.back.user.Usuario;
+import checkchow.back.user.UsuarioRepository;
 import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.util.Date;
-import java.util.Optional;
+import java.security.Key;
+
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.security.Keys;
+import jakarta.servlet.http.HttpServletRequest;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @RequiredArgsConstructor
 @Service
@@ -27,6 +34,7 @@ public class AuthService{
 
     private final UsuarioRepository usuarioRepository;
     private final PasswordEncoder passwordEncoder;
+    private final AuditoriaService auditoriaService;
 
     @Value("${jwt.secret}")
     private String jwtSecret;
@@ -35,17 +43,25 @@ public class AuthService{
     private int jwtExpiration;
 
     public AuthResponse login(AuthRequest loginRequest) {
+        return login(loginRequest, null);
+    }
+
+    public AuthResponse login(AuthRequest loginRequest, HttpServletRequest httpRequest) {
         log.info("=== INICIO LOGIN DEBUG ===");
         log.info("AuthRequest recibido: {}", loginRequest);
         log.info("Correo: '{}' (length: {})", loginRequest.getEmail().toUpperCase(), loginRequest.getEmail() != null ? loginRequest.getEmail().length() : "null");
         log.info("Password: '{}' (length: {})", loginRequest.getPassword(), loginRequest.getPassword() != null ? loginRequest.getPassword().length() : "null");
 
         try {
-            log.info("Buscando usuario por correo: '{}'", loginRequest.getEmail());
-            Optional<Usuario> usuarioOpt = usuarioRepository.findByEmail(loginRequest.getEmail().toUpperCase());
+            String email = loginRequest.getEmail().trim().toLowerCase();
+            log.info("Buscando usuario por correo: '{}'", email);
+            Optional<Usuario> usuarioOpt = usuarioRepository.findByEmail(email);
 
             if (usuarioOpt.isEmpty()) {
                 log.warn("Usuario no encontrado para correo: '{}'", loginRequest.getEmail());
+                auditoriaService.registrarEvento(null, null, TAccion.LOGIN, TMetodoHttp.POST,
+                        "/api/auth/login", "usuario", null,
+                        "{\"accion\":\"LOGIN_FALLIDO\",\"motivo\":\"USUARIO_NO_ENCONTRADO\"}", httpRequest);
                 return new AuthResponse("ERROR", "Credenciales inválidas", null, null, null);
             }
 
@@ -58,13 +74,20 @@ public class AuthService{
 
             if (!passwordMatch) {
                 log.warn("Contraseña incorrecta para usuario: '{}'", loginRequest.getEmail());
+                auditoriaService.registrarEvento(usuario, null, TAccion.LOGIN, TMetodoHttp.POST,
+                        "/api/auth/login", "usuario", String.valueOf(usuario.getId()),
+                        "{\"accion\":\"LOGIN_FALLIDO\",\"motivo\":\"PASSWORD_INVALIDO\"}", httpRequest);
                 return new AuthResponse("ERROR", "Credenciales inválidas", null, null, null);
             }
 
             String token = generateToken(usuario);
+            Sesion sesion = auditoriaService.registrarSesion(usuario, token, httpRequest);
+            auditoriaService.registrarEvento(usuario, sesion, TAccion.LOGIN, TMetodoHttp.POST,
+                    "/api/auth/login", "usuario", String.valueOf(usuario.getId()),
+                    "{\"accion\":\"LOGIN_EXITOSO\"}", httpRequest);
             log.info("Login exitoso para usuario: '{}'", loginRequest.getEmail());
 
-            return new AuthResponse("OK", "Login exitoso", token, usuario.getId().longValue(), usuario.getNombre_completo());
+            return new AuthResponse("OK", "Login exitoso", token, usuario.getId(), usuario.getNombre_completo());
 
         } catch (Exception e) {
             log.error("Error durante el login: ", e);
@@ -74,36 +97,22 @@ public class AuthService{
         }
     }
 
+    private Key getSigningKey() {
+        return Keys.hmacShaKeyFor(jwtSecret.getBytes(StandardCharsets.UTF_8));
+    }
+
     private String generateToken(Usuario usuario) {
         Date now = new Date();
         Date expiryDate = new Date(now.getTime() + jwtExpiration);
-
-        // Crear una clave segura para HS512
-        SecretKey secretKey = createSecureKey(jwtSecret);
+        Map<String, Object> claims = new HashMap<>();
+        claims.put("roles", List.of("ROLE_" + usuario.getRol().name()));
 
         return Jwts.builder()
+                .setClaims(claims)
                 .setSubject(usuario.getEmail())
-                .setIssuedAt(new Date())
+                .setIssuedAt(now)
                 .setExpiration(expiryDate)
-                .signWith(secretKey, SignatureAlgorithm.HS512)
+                .signWith(getSigningKey())
                 .compact();
-    }
-
-    /**
-     * Crea una clave segura de 512 bits para HS512 basada en el secreto configurado
-     */
-    private SecretKey createSecureKey(String secret) {
-        try {
-            // Usar SHA-512 para generar una clave de 512 bits a partir del secreto
-            MessageDigest digest = MessageDigest.getInstance("SHA-512");
-            byte[] hash = digest.digest(secret.getBytes(StandardCharsets.UTF_8));
-
-            // Crear la clave secreta con los primeros 64 bytes (512 bits)
-            return Keys.hmacShaKeyFor(hash);
-        } catch (Exception e) {
-            log.error("Error al crear la clave segura: ", e);
-            // Como fallback, generar una clave completamente nueva y segura
-            return Keys.secretKeyFor(SignatureAlgorithm.HS512);
-        }
     }
 }

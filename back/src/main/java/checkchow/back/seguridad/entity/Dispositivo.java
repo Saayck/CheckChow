@@ -5,6 +5,9 @@ import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+import java.net.InetAddress;
 import java.time.OffsetDateTime;
 
 @Data
@@ -27,8 +30,9 @@ public class Dispositivo {
     @Column(name = "user_agent", columnDefinition = "TEXT")
     private String userAgent;
 
+    @JdbcTypeCode(SqlTypes.INET)
     @Column(name = "ip_registro", columnDefinition = "INET")
-    private String ipRegistro;
+    private InetAddress ipRegistro;
 
     @Column(name = "fecha_creacion", nullable = false, updatable = false)
     private OffsetDateTime fechaCreacion = OffsetDateTime.now();
