@@ -21,7 +21,7 @@ public class UsuarioService {
         usuario.setNombre_completo(usuario.getNombre_completo().toUpperCase());
 
         usuario.setEmail(usuario.getEmail().toUpperCase());
-        usuario.setFechaCreacion(OffsetDateTime.from(LocalDateTime.now()));
+        usuario.setFechaCreacion(LocalDateTime.now());
 
         usuario.setPassword(passwordEncoder.encode(usuario.getPassword()));
         return usuarioRepo.save(usuario);
@@ -34,7 +34,7 @@ public class UsuarioService {
         usuarioExistente.setNombre_completo(usuario.getNombre_completo().toUpperCase());
 
         usuarioExistente.setEmail(usuario.getEmail().toUpperCase());
-        usuarioExistente.setFechaModificacion(OffsetDateTime.from(LocalDateTime.now()));
+        usuarioExistente.setFechaModificacion(LocalDateTime.now());
 
         if (usuario.getPassword() != null && !usuario.getPassword().isBlank()) {
             usuarioExistente.setPassword(passwordEncoder.encode(usuario.getPassword()));

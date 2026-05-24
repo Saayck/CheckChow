@@ -37,15 +37,15 @@ public class AuthService{
     public AuthResponse login(AuthRequest loginRequest) {
         log.info("=== INICIO LOGIN DEBUG ===");
         log.info("AuthRequest recibido: {}", loginRequest);
-        log.info("Correo: '{}' (length: {})", loginRequest.getCorreo(), loginRequest.getCorreo() != null ? loginRequest.getCorreo().length() : "null");
+        log.info("Correo: '{}' (length: {})", loginRequest.getEmail().toUpperCase(), loginRequest.getEmail() != null ? loginRequest.getEmail().length() : "null");
         log.info("Password: '{}' (length: {})", loginRequest.getPassword(), loginRequest.getPassword() != null ? loginRequest.getPassword().length() : "null");
 
         try {
-            log.info("Buscando usuario por correo: '{}'", loginRequest.getCorreo());
-            Optional<Usuario> usuarioOpt = usuarioRepository.findByEmail(loginRequest.getCorreo());
+            log.info("Buscando usuario por correo: '{}'", loginRequest.getEmail());
+            Optional<Usuario> usuarioOpt = usuarioRepository.findByEmail(loginRequest.getEmail().toUpperCase());
 
             if (usuarioOpt.isEmpty()) {
-                log.warn("Usuario no encontrado para correo: '{}'", loginRequest.getCorreo());
+                log.warn("Usuario no encontrado para correo: '{}'", loginRequest.getEmail());
                 return new AuthResponse("ERROR", "Credenciales inválidas", null, null, null);
             }
 
@@ -57,12 +57,12 @@ public class AuthService{
             log.info("Verificación de contraseña: {}", passwordMatch);
 
             if (!passwordMatch) {
-                log.warn("Contraseña incorrecta para usuario: '{}'", loginRequest.getCorreo());
+                log.warn("Contraseña incorrecta para usuario: '{}'", loginRequest.getEmail());
                 return new AuthResponse("ERROR", "Credenciales inválidas", null, null, null);
             }
 
             String token = generateToken(usuario);
-            log.info("Login exitoso para usuario: '{}'", loginRequest.getCorreo());
+            log.info("Login exitoso para usuario: '{}'", loginRequest.getEmail());
 
             return new AuthResponse("OK", "Login exitoso", token, usuario.getId().longValue(), usuario.getNombre_completo());
 

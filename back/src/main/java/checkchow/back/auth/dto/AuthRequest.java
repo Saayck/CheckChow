@@ -12,7 +12,7 @@ import lombok.Setter;
 public class AuthRequest {
     @NotBlank(message = "El correo es obligatorio")
     @Email(message = "El formato del correo es inválido")
-    private String correo;
+    private String email;
 
     @NotBlank(message = "La contraseña es obligatoria")
     private String password;

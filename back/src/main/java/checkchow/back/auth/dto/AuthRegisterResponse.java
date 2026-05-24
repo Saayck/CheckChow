@@ -14,6 +14,5 @@ public class AuthRegisterResponse {
     private Long id;
     private String nombre_completo;
     private String email;
-    private String celular;
     private LocalDateTime createdAt;
 }
