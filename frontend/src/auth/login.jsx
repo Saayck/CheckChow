@@ -69,11 +69,11 @@ export default function Login() {
     }
 
     if (!registerPassword.trim()) {
-      errors.password = "La contraseÃ±a no puede estar vacÃ­a";
+      errors.password = "La contraseña no puede estar vacía";
     } else if (registerPassword.length < 8) {
-      errors.password = "La contraseÃ±a debe tener al menos 8 caracteres";
+      errors.password = "La contraseña debe tener al menos 8 caracteres";
     } else if (!passwordRegex.test(registerPassword)) {
-      errors.password = "La contraseÃ±a debe incluir al menos una mayÃºscula, una minÃºscula, un nÃºmero y un sÃ­mbolo";
+      errors.password = "La contraseña debe incluir al menos una mayúscula, una minúscula, un número y un símbolo";
     }
 
     setRegisterErrors(errors);
@@ -112,6 +112,7 @@ export default function Login() {
         "checkchow_session",
         JSON.stringify({
           token: data.token,
+          refreshToken: data.refreshToken,
           userId: data.userId,
           nombre: data.nombre,
           email: loginEmail,
@@ -184,7 +185,7 @@ export default function Login() {
         </div>
 
         <h1 id="login-title">{isRegisterMode ? "Crear cuenta" : "Bienvenido"}</h1>
-        <p>Sistema de GestiÃ³n de Asistencia</p>
+        <p>Sistema de Gestión de Asistencia</p>
 
         {isRegisterMode ? (
         <form onSubmit={handleRegisterSubmit} noValidate>
@@ -219,10 +220,10 @@ export default function Login() {
               onChange={(e) => setEmail(e.target.value)}
               onBlur={() => setEmail(email.trim())}
               type="email"
-              placeholder="Correo electrÃ³nico"
+              placeholder="Correo electrónico"
               className="form-control"
               autoComplete="email"
-              aria-label="Correo electrÃ³nico"
+              aria-label="Correo electrónico"
             />
             {registerErrors.email && (
               <span className="field-error" role="alert">{registerErrors.email}</span>
@@ -238,16 +239,16 @@ export default function Login() {
               value={registerPassword}
               onChange={(e) => setRegisterPassword(e.target.value)}
               type={mostrarPassword ? "text" : "password"}
-              placeholder="ContraseÃ±a"
+              placeholder="Contraseña"
               className="form-control"
               autoComplete="new-password"
-              aria-label="ContraseÃ±a"
+              aria-label="Contraseña"
             />
 
             <button
               type="button"
               className="eye-button"
-              aria-label={mostrarPassword ? "Ocultar contraseÃ±a" : "Mostrar contraseÃ±a"}
+              aria-label={mostrarPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
               onClick={() => setMostrarPassword(!mostrarPassword)}
             >
               {mostrarPassword ? <EyeSlashIcon /> : <EyeIcon />}
@@ -298,17 +299,17 @@ export default function Login() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               type={mostrarPassword ? "text" : "password"}
-              placeholder="ContraseÃ±a"
+              placeholder="Contraseña"
               className="form-control"
               autoComplete="current-password"
-              aria-label="ContraseÃ±a"
+              aria-label="Contraseña"
               required
             />
 
             <button
               type="button"
               className="eye-button"
-              aria-label={mostrarPassword ? "Ocultar contraseÃ±a" : "Mostrar contraseÃ±a"}
+              aria-label={mostrarPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
               onClick={() => setMostrarPassword(!mostrarPassword)}
             >
               {mostrarPassword ? <EyeSlashIcon /> : <EyeIcon />}
@@ -323,7 +324,7 @@ export default function Login() {
           )}
 
           <button type="submit" className="btn-login" disabled={!username || !password}>
-            Iniciar SesiÃ³n
+            Iniciar Sesión
           </button>
 
         </form>

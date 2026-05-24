@@ -2,10 +2,10 @@ import Header from "../../../components/header";
 import "../../../styles/dashboard.css";
 import { useMemo, useState, useEffect, useRef } from "react";
 import { readFirstSheetRows } from "../../../utils/excel";
+import { apiRequest } from "../../../utils/api";
+import { getOfficialResults, normalizeText } from "../../../utils/admissionImport";
 
-const initialPostulants = [
-	{ id: 1, dni: "12345678", names: "Juan Carlos Pérez Gómez", litho: "", tema: "" },
-];
+const initialPostulants = [];
 
 export default function GestPostulantes() {
 	const getInitialPostulants = () => {
@@ -23,7 +23,13 @@ export default function GestPostulantes() {
 	const emptyForm = useMemo(() => ({ names: "", dni: "", litho: "", tema: "", carrera: "" }), []);
 	const [formData, setFormData] = useState(emptyForm);
 	const [importMessage, setImportMessage] = useState("");
+	const [dbSaveResult, setDbSaveResult] = useState(null);
+	const [carreras, setCarreras] = useState([]);
 	const formRef = useRef(null);
+
+	useEffect(() => {
+		apiRequest("/api/carrera").then(d => setCarreras(d || [])).catch(() => {});
+	}, []);
 
 	useEffect(() => {
 		try {
@@ -88,8 +94,114 @@ export default function GestPostulantes() {
 		resetForm();
 	};
 
+	// Separa "APELLIDO1 APELLIDO2, NOMBRES" → { nombres, apellidoPat, apellidoMat }
+	const splitNombre = (nombreCompleto) => {
+		if (!nombreCompleto) return { nombres: "", apellidoPat: "", apellidoMat: "" };
+		if (nombreCompleto.includes(",")) {
+			const [apellidos, nms] = nombreCompleto.split(",", 2);
+			const parts = apellidos.trim().split(/\s+/);
+			return {
+				nombres:    nms.trim(),
+				apellidoPat: parts[0] || "",
+				apellidoMat: parts[1] || "",
+			};
+		}
+		const parts = nombreCompleto.trim().split(/\s+/);
+		return {
+			apellidoPat: parts[0] || "",
+			apellidoMat: parts[1] || "",
+			nombres:     parts.slice(2).join(" "),
+		};
+	};
+
+	// Intenta encontrar la carrera más parecida
+	const matchCarrera = (rawValue) => {
+		if (!rawValue) return null;
+		const v = normalizeText(rawValue);
+		return carreras.find(c =>
+			normalizeText(c.codigo) === v ||
+			normalizeText(c.nombre) === v ||
+			normalizeText(c.nombre).includes(v) ||
+			v.includes(normalizeText(c.nombre))
+		) || null;
+	};
+
+	const enrichWithOfficialPdf = (rows) => {
+		const oficiales = getOfficialResults();
+		if (!oficiales.length) return { rows, enriched: 0 };
+
+		const byDni = new Map();
+		oficiales.forEach((item) => {
+			if (item.dni) byDni.set(String(item.dni).trim(), item);
+		});
+
+		let enriched = 0;
+		const updated = rows.map((row) => {
+			if (row.carrera) return row;
+			const oficial = byDni.get(String(row.dni || "").trim());
+			if (!oficial?.carrera) return row;
+			enriched += 1;
+			return {
+				...row,
+				carrera: oficial.carrera,
+				facultad: oficial.facultad || row.facultad || "",
+			};
+		});
+
+		return { rows: updated, enriched };
+	};
+
+	const handleCompletarDesdePdf = async () => {
+		const { rows, enriched } = enrichWithOfficialPdf(postulants);
+		if (!enriched) {
+			setImportMessage("No se encontraron carreras faltantes para completar desde el PDF oficial.");
+			return;
+		}
+		setPostulants(rows);
+		setImportMessage(`Se completaron ${enriched} carrera(s) desde el PDF oficial.`);
+		await saveToDb(rows);
+	};
+
+	const saveToDb = async (rows) => {
+		setDbSaveResult(null);
+		const sinCarrera = new Set();
+		const payload = rows
+			.filter(r => r.dni)
+			.map(r => {
+				const matched = matchCarrera(r.carrera);
+				if (r.carrera && !matched) sinCarrera.add(r.carrera);
+				// Usar apellidos del fichero si existen; si no, separar del nombre completo
+				const hasAp = r.apellidoPat || r.apellidoMat;
+				const split = hasAp ? null : splitNombre(r.names);
+				return {
+					dni:         r.dni,
+					nombres:     hasAp ? r.names      : split.nombres,
+					apellidoPat: hasAp ? r.apellidoPat : split.apellidoPat,
+					apellidoMat: hasAp ? r.apellidoMat : split.apellidoMat,
+					carrera:     matched ? matched.codigo : (r.carrera || ""),
+					litho:       r.litho,
+					tema:        r.tema,
+				};
+			});
+		try {
+			const saved = await apiRequest("/api/postulante/import", {
+				method: "POST",
+				body: JSON.stringify(payload),
+			});
+			setDbSaveResult({
+				ok: true,
+				saved: saved?.length ?? 0,
+				total: rows.length,
+				sinCarrera: [...sinCarrera],
+			});
+		} catch (err) {
+			setDbSaveResult({ ok: false, msg: err.message });
+		}
+	};
+
 	const handleFileImport = async (file) => {
 		setImportMessage("");
+		setDbSaveResult(null);
 		if (!file) return;
 
 		const ext = file.name.split('.').pop().toLowerCase();
@@ -105,17 +217,22 @@ export default function GestPostulantes() {
 				const rows = json.map((row, idx) => {
 					const lookup = {};
 					Object.keys(row).forEach((k) => (lookup[String(k).trim().toUpperCase()] = row[k]));
+					const str = (key) => String(lookup[key] ?? '').trim();
 					return {
-						id: Date.now() + idx,
-						dni: String(lookup['DNI'] ?? '').trim(),
-						names: String(lookup['NOMBRE'] ?? lookup['NOMBRES'] ?? lookup['NAME'] ?? '').trim(),
-						litho: String(lookup['LITHO'] ?? '').trim(),
-						tema: String(lookup['TEMA'] ?? '').trim(),
-						carrera: String(lookup['CARRERA'] ?? lookup['ESCUELA'] ?? lookup['ESPEC'] ?? lookup['ESCOLA'] ?? lookup['ESPECIALIDAD'] ?? '').trim(),
+						id:          Date.now() + idx,
+						dni:         str('DNI'),
+						names:       str('NOMBRE') || str('NOMBRES') || str('NAME'),
+						apellidoPat: str('APELLIDO_PAT') || str('AP_PAT') || str('APELLIDO1'),
+						apellidoMat: str('APELLIDO_MAT') || str('AP_MAT') || str('APELLIDO2'),
+						litho:       str('LITHO') || str('LITHOCODIGO') || str('LITHO_CODIGO') || str('CODIGO') || str('COD_POSTULANTE'),
+						tema:        str('TEMA'),
+						carrera:     str('CARRERA') || str('ESCUELA') || str('ESPEC') || str('ESCOLA') || str('ESPECIALIDAD'),
 					};
 				});
-				setPostulants((current) => [...current, ...rows]);
-				setImportMessage(`Importados ${rows.length} registros desde Excel.`);
+				const enriched = enrichWithOfficialPdf(rows);
+				setPostulants((current) => [...current, ...enriched.rows]);
+				setImportMessage(`Importados ${rows.length} registros desde Excel.${enriched.enriched ? ` Carreras completadas desde PDF: ${enriched.enriched}.` : ""}`);
+				await saveToDb(enriched.rows);
 			} catch (err) {
 				console.error(err);
 				setImportMessage("Error al importar el Excel.");
@@ -198,26 +315,30 @@ export default function GestPostulantes() {
 				json = parseDbf(data);
 			}
 
-			// Normalizar campos: DNI, NOMBRE, LITHO, TEMA, CARRERA
+			// Normalizar campos: DNI, NOMBRE, APELLIDOS, LITHO, TEMA, CARRERA
 			const rows = json.map((row, idx) => {
 				const keys = Object.keys(row || {});
 				const mapKey = (k) => (k ? k.toString().trim().toUpperCase() : '');
 				const lookup = {};
 				keys.forEach((k) => (lookup[mapKey(k)] = row[k]));
-				const get = (...keys) => { for (const k of keys) { if (lookup[k]) return String(lookup[k]).trim(); } return ''; };
+				const get = (...ks) => { for (const k of ks) { if (lookup[k]) return String(lookup[k]).trim(); } return ''; };
 
 				return {
-					id: Date.now() + idx,
-					dni: get('DNI'),
-					names: get('NOMBRE', 'NOMBRES', 'NAME'),
-					litho: get('LITHO'),
-					tema: get('TEMA'),
-					carrera: get('CARRERA', 'ESCUELA', 'ESPEC', 'ESCOLA', 'ESPECIALIDAD', 'COD_ESC'),
+					id:          Date.now() + idx,
+					dni:         get('DNI'),
+					names:       get('NOMBRE', 'NOMBRES', 'NAME'),
+					apellidoPat: get('APELLIDO_PAT', 'AP_PAT', 'APELLIDO1'),
+					apellidoMat: get('APELLIDO_MAT', 'AP_MAT', 'APELLIDO2'),
+					litho:       get('LITHO', 'LITHOCODIGO', 'LITHO_CODIGO', 'CODIGO', 'COD_POSTULANTE'),
+					tema:        get('TEMA'),
+					carrera:     get('CARRERA', 'ESCUELA', 'ESPEC', 'ESCOLA', 'ESPECIALIDAD', 'COD_ESC'),
 				};
 			});
 
-			setPostulants((current) => [...current, ...rows]);
-			setImportMessage(`Importados ${rows.length} registros correctamente.`);
+			const enriched = enrichWithOfficialPdf(rows);
+			setPostulants((current) => [...current, ...enriched.rows]);
+			setImportMessage(`Importados ${rows.length} registros correctamente.${enriched.enriched ? ` Carreras completadas desde PDF: ${enriched.enriched}.` : ""}`);
+			await saveToDb(enriched.rows);
 		} catch (err) {
 			console.error(err);
 			setImportMessage("Error al importar el archivo. Usa un DBF válido o instala la dependencia 'dbf'.");
@@ -243,6 +364,9 @@ export default function GestPostulantes() {
 							Importar DBF / Excel
 							<input type="file" accept=".dbf,.xlsx" onChange={(e) => handleFileImport(e.target.files?.[0])} style={{ display: 'none' }} />
 						</label>
+						<button type="button" className="btn action-button action-button-secondary" onClick={handleCompletarDesdePdf}>
+							Completar carreras desde PDF
+						</button>
 						<button type="button" className="btn action-button action-button-ghost" onClick={() => { setPostulants([]); setImportMessage(""); }}>
 							Limpiar
 						</button>
@@ -298,8 +422,33 @@ export default function GestPostulantes() {
 				)}
 
 				{importMessage && (
-					<div className="mb-3 d-flex align-items-center gap-2">
+					<div className="mb-2 d-flex align-items-center gap-2">
 						<span className="text-light-emphasis">{importMessage}</span>
+					</div>
+				)}
+				{dbSaveResult && (
+					<div className={`alert alert-${dbSaveResult.ok ? (dbSaveResult.saved === dbSaveResult.total ? "success" : "warning") : "danger"} mb-3 py-2`}
+						style={{ fontSize: "0.85rem" }}>
+						{dbSaveResult.ok ? (
+							<>
+								<i className={`bi ${dbSaveResult.saved === dbSaveResult.total ? "bi-check-circle" : "bi-exclamation-triangle"} me-2`}></i>
+								<strong>{dbSaveResult.saved} de {dbSaveResult.total}</strong> postulantes guardados en BD.
+								{dbSaveResult.sinCarrera?.length > 0 && (
+									<>
+										{" "}Los postulantes omitidos tienen carreras que no coinciden en la BD:{" "}
+										{dbSaveResult.sinCarrera.map(c => (
+											<span key={c} className="badge bg-secondary me-1">{c}</span>
+										))}.
+										{" "}Regístralas en <strong>Administración → Carreras</strong> con esos mismos códigos/nombres.
+									</>
+								)}
+								{dbSaveResult.saved < dbSaveResult.total && !dbSaveResult.sinCarrera?.length && (
+									<> Los demás ya existían (DNI duplicado).</>
+								)}
+							</>
+						) : (
+							<><i className="bi bi-x-circle me-2"></i>Error al guardar en BD: {dbSaveResult.msg}</>
+						)}
 					</div>
 				)}
 

@@ -6,8 +6,6 @@ import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import org.hibernate.annotations.JdbcTypeCode;
-import org.hibernate.type.SqlTypes;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 
@@ -33,11 +31,13 @@ public class ProcesoAdmision {
     @Column(length = 255)
     private String description;
 
+    @Column(name = "tipo_proceso_admision", length = 80)
+    private String tipoProcesoAdmision;
+
     @Column(name = "fecha_examen", nullable = false)
     private LocalDate fechaExamen;
 
     @Enumerated(EnumType.STRING)
-    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Column(nullable = false)
     private TEstadoProceso estado = TEstadoProceso.CONFIGURACION;
 

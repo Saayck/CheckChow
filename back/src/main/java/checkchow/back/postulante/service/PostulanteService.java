@@ -2,6 +2,7 @@ package checkchow.back.postulante.service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -88,32 +89,59 @@ public class PostulanteService {
 
                 for (PostulanteImportDTO row : rows) {
 
-                        Carrera carrera = carreraRepository
-                                        .findByCodigo(
-                                                        row.getCarrera())
-                                        .orElseThrow(() -> new RuntimeException(
-                                                        "Carrera no encontrada: "
-                                                                        + row.getCarrera()));
+                        if (row.getDni() == null || row.getDni().isBlank()) continue;
+
+                        // Omitir duplicados por DNI
+                        // Buscar carrera por codigo (exacto) → codigo (ignoreCase) → nombre (ignoreCase)
+                        String carreraKey = row.getCarrera() != null ? row.getCarrera().trim() : "";
+                        Carrera carrera = null;
+                        if (!carreraKey.isEmpty()) {
+                                carrera = carreraRepository.findByCodigo(carreraKey)
+                                        .or(() -> carreraRepository.findByCodigoIgnoreCase(carreraKey))
+                                        .or(() -> carreraRepository.findByNombreIgnoreCase(carreraKey))
+                                        .orElse(null);
+                        }
+                        // Si no se encuentra la carrera se guarda el postulante sin carrera (nullable)
+
+                        Optional<Postulante> existenteOpt = postulanteRepository.findByDni(row.getDni());
+                        if (existenteOpt.isPresent()) {
+                                Postulante existente = existenteOpt.get();
+                                if (existente.getCarrera() == null && carrera != null) {
+                                        existente.setCarrera(carrera);
+                                        lista.add(existente);
+                                }
+                                continue;
+                        }
 
                         Postulante p = new Postulante();
 
                         p.setDni(row.getDni());
-
-                        p.setCodPostulante(
-                                        UUID.randomUUID().toString());
-
-                        p.setNombres(
-                                        row.getNombres());
-
-                        p.setApellidoPat("");
-                        p.setApellidoMat("");
-
+                        p.setCodPostulante(buildCodPostulante(row.getLitho()));
+                        p.setNombres(row.getNombres() != null ? row.getNombres() : "");
+                        p.setApellidoPat(row.getApellidoPat() != null ? row.getApellidoPat() : "");
+                        p.setApellidoMat(row.getApellidoMat() != null ? row.getApellidoMat() : "");
                         p.setCarrera(carrera);
 
                         lista.add(p);
                 }
 
-                return postulanteRepository
-                                .saveAll(lista);
+                return postulanteRepository.saveAll(lista);
+        }
+
+        private String buildCodPostulante(String litho) {
+                String cleanLitho = litho != null ? litho.trim() : "";
+                if (!cleanLitho.isEmpty()) {
+                        String code = cleanLitho.length() > 20 ? cleanLitho.substring(0, 20) : cleanLitho;
+                        if (postulanteRepository.findByCodPostulante(code).isEmpty()) {
+                                return code;
+                        }
+                }
+
+                String generated;
+                do {
+                        generated = UUID.randomUUID().toString().replace("-", "").substring(0, 20);
+                } while (postulanteRepository.findByCodPostulante(generated).isPresent());
+
+                return generated;
         }
 }

@@ -3,8 +3,6 @@ package checkchow.back.user;
 import checkchow.back.enums.TRol;
 import jakarta.persistence.*;
 import lombok.Getter;
-import org.hibernate.annotations.JdbcTypeCode;
-import org.hibernate.type.SqlTypes;
 import java.time.LocalDateTime;
 
 @Getter
@@ -17,7 +15,7 @@ public class Usuario {
     @Column(unique = true, length = 120, nullable = false) private String email;
     @Column(name = "password", length = 255, nullable = false) private String password;
     @Column(length = 100, nullable = false) private String nombre_completo;
-    @Enumerated(EnumType.STRING) @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+    @Enumerated(EnumType.STRING)
     @Column(name = "rol", nullable = false, columnDefinition = "varchar(255) default 'ADMIN'")
     private TRol rol;
     @Column(nullable = false) private Boolean activo = true;

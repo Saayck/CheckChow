@@ -1,16 +1,17 @@
 import Header from "../../../components/header";
 import "../../../styles/dashboard.css";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { apiRequest } from "../../../utils/api";
+import {
+	detectVacantes,
+	getOfficialResults,
+	importTemasFromDbf,
+	parseAdmissionMetadata,
+	saveOfficialResults,
+	upsertOfficialImport,
+} from "../../../utils/admissionImport";
 
-const OFFICIAL_KEY = "officialResultsData";
-
-const saveParsed = (data) => {
-	try { localStorage.setItem(OFFICIAL_KEY, JSON.stringify(data)); } catch {}
-};
-
-export const getOfficialResults = () => {
-	try { return JSON.parse(localStorage.getItem(OFFICIAL_KEY) || "[]"); } catch { return []; }
-};
+export { getOfficialResults };
 
 // Agrupa ítems de texto PDF por línea (similar coordenada Y)
 const agruparEnLineas = (items, tolerancia = 3) => {
@@ -46,6 +47,12 @@ const limpiarCarrera = (linea) =>
 		.replace(/PROGRAMA\s+(PROFESIONAL\s+)?(DE\s+)?/i, "")
 		.trim();
 
+const limpiarFacultad = (linea) =>
+	linea
+		.replace(/^.*FACULTAD\s+(DE\s+)?/i, "")
+		.replace(/\s+ESCUELA\s+.*$/i, "")
+		.trim();
+
 // Parsea una línea intentando extraer: SEC CODIGO NOMBRE PUNTAJE MERITO CONDICION
 const parsearFilaEstudiante = (linea) => {
 	// Patrón flexible: empieza con 4 dígitos (SEC), sigue código DNI, luego nombre, puntaje decimal, mérito, condición
@@ -68,8 +75,21 @@ export default function ResultadosOficiales() {
 	const [mensaje, setMensaje] = useState("");
 	const [preview, setPreview] = useState(() => getOfficialResults());
 	const [filtroCarrera, setFiltroCarrera] = useState("__TODAS__");
+	const [procesos, setProcesos] = useState([]);
+	const [selectedProceso, setSelectedProceso] = useState("");
+	const [metadata, setMetadata] = useState({});
 
 	const carreras = [...new Set(preview.map((r) => r.carrera).filter(Boolean))].sort();
+
+	useEffect(() => {
+		apiRequest("/api/proceso-admision", { redirectOnUnauthorized: false })
+			.then((data) => {
+				const list = data || [];
+				setProcesos(list);
+				setSelectedProceso((current) => current || String(list[0]?.id || ""));
+			})
+			.catch((err) => setMensaje(err.message || "No se pudieron cargar procesos."));
+	}, []);
 
 	const handlePdfUpload = async (file) => {
 		if (!file) return;
@@ -116,24 +136,34 @@ export default function ResultadosOficiales() {
 				.sort((a, b) => Number(a) - Number(b))
 				.forEach((p) => lineas.push(...agruparEnLineas(porPagina[p])));
 
-			// Parsear líneas
+			const pdfMetadata = parseAdmissionMetadata(lineas);
 			const resultados = [];
 			let carreraActual = "";
+			let facultadActual = "";
+			let vacantesActuales = null;
 
 			for (const linea of lineas) {
 				if (!linea) continue;
+				if (/FACULTAD/i.test(linea) && !/^\d{4}\s+\d{6}/.test(linea)) {
+					const facultad = limpiarFacultad(linea);
+					if (facultad) facultadActual = facultad;
+				}
 				if (esHeaderCarrera(linea)) {
 					carreraActual = limpiarCarrera(linea);
+					vacantesActuales = detectVacantes(linea);
 					continue;
 				}
+				const vacantesLinea = detectVacantes(linea);
+				if (vacantesLinea !== null) vacantesActuales = vacantesLinea;
 				const fila = parsearFilaEstudiante(linea);
 				if (fila) {
-					resultados.push({ ...fila, carrera: carreraActual });
+					resultados.push({ ...fila, carrera: carreraActual, facultad: facultadActual, vacantesPdf: vacantesActuales });
 				}
 			}
 
-			saveParsed(resultados);
+			saveOfficialResults(resultados);
 			setPreview(resultados);
+			setMetadata(pdfMetadata);
 			setMensaje(
 				resultados.length > 0
 					? `✓ Extraídos ${resultados.length} registro(s) en ${carreras.length || new Set(resultados.map((r) => r.carrera)).size} carrera(s).`
@@ -142,6 +172,39 @@ export default function ResultadosOficiales() {
 		} catch (err) {
 			console.error(err);
 			setMensaje(`Error al procesar el PDF: ${err.message}`);
+		} finally {
+			setLoading(false);
+		}
+	};
+
+	const handleSyncDb = async () => {
+		if (!preview.length) return;
+		setLoading(true);
+		setMensaje("Sincronizando con gestion de carreras y vacantes...");
+		try {
+			const result = await upsertOfficialImport({
+				resultados: preview,
+				metadata,
+				procesoId: selectedProceso,
+				setMensaje,
+			});
+			setMensaje(`Sincronizado: ${result.carrerasCreadas} carrera(s), ${result.facultadesCreadas} facultad(es), ${result.vacantesGuardadas} vacante(s). Ingresantes: ${result.ingresantes}.`);
+		} catch (err) {
+			setMensaje(err.message || "No se pudo sincronizar la importacion.");
+		} finally {
+			setLoading(false);
+		}
+	};
+
+	const handleDbfTemas = async (file) => {
+		if (!file) return;
+		setLoading(true);
+		setMensaje("Importando temas desde DBF...");
+		try {
+			const result = await importTemasFromDbf({ file, procesoId: selectedProceso });
+			setMensaje(`Temas importados: ${result.created}. Existentes omitidos: ${result.skipped}.`);
+		} catch (err) {
+			setMensaje(err.message || "No se pudo importar RESPUEST.DBF.");
 		} finally {
 			setLoading(false);
 		}
@@ -165,6 +228,18 @@ export default function ResultadosOficiales() {
 
 				<div className="glass-card p-4 mb-4">
 					<div className="d-flex flex-wrap align-items-center gap-3">
+						<select
+							className="form-select"
+							style={{ maxWidth: 360, background: "rgba(15,23,42,0.95)", border: "1px solid rgba(148,163,184,0.2)", color: "#f8fafc" }}
+							value={selectedProceso}
+							onChange={(e) => setSelectedProceso(e.target.value)}
+							disabled={loading}
+						>
+							<option value="">— Seleccionar proceso —</option>
+							{procesos.map((p) => (
+								<option key={p.id} value={p.id}>{p.codigo} — {p.periodo} {p.anio}</option>
+							))}
+						</select>
 						<label className="btn action-button action-button-primary" style={{ cursor: "pointer" }}>
 							<i className="bi bi-file-earmark-pdf me-2"></i>
 							{loading ? "Procesando..." : "Cargar PDF oficial"}
@@ -176,10 +251,30 @@ export default function ResultadosOficiales() {
 								onChange={(e) => handlePdfUpload(e.target.files?.[0])}
 							/>
 						</label>
+						<label className={`btn action-button action-button-secondary ${!selectedProceso || loading ? "disabled" : ""}`} style={{ cursor: selectedProceso && !loading ? "pointer" : "default" }}>
+							<i className="bi bi-filetype-dbf me-2"></i>
+							Importar temas DBF
+							<input
+								type="file"
+								accept=".dbf"
+								style={{ display: "none" }}
+								disabled={!selectedProceso || loading}
+								onChange={(e) => handleDbfTemas(e.target.files?.[0])}
+							/>
+						</label>
+						{preview.length > 0 && (
+							<button
+								className="btn action-button action-button-success"
+								onClick={handleSyncDb}
+								disabled={!selectedProceso || loading}
+							>
+								<i className="bi bi-database-check me-2"></i>Guardar en DB
+							</button>
+						)}
 						{preview.length > 0 && (
 							<button
 								className="btn action-button action-button-ghost action-button-sm"
-								onClick={() => { saveParsed([]); setPreview([]); setMensaje("Datos eliminados."); }}
+								onClick={() => { saveOfficialResults([]); setPreview([]); setMensaje("Datos eliminados."); }}
 							>
 								Limpiar
 							</button>

@@ -49,13 +49,26 @@ const getStoredJson = (key, fallback) => {
 
 const buildPostulantIndex = (postulants) => {
 	const index = new Map();
+	const lithoIndex = new Map();
 	postulants.forEach((postulant) => {
 		const litho = normalizeMatchValue(postulant.litho);
 		const tema = normalizeMatchValue(postulant.tema);
-		if (!litho || !tema) return;
-		index.set(`${litho}__${tema}`, postulant);
+		if (!litho) return;
+		if (tema) index.set(`${litho}__${tema}`, postulant);
+		if (!lithoIndex.has(litho)) lithoIndex.set(litho, []);
+		lithoIndex.get(litho).push(postulant);
 	});
-	return index;
+	return { index, lithoIndex };
+};
+
+const findPostulantMatch = ({ litho, tema, index, lithoIndex }) => {
+	if (!litho) return null;
+	if (tema) {
+		const exact = index.get(`${litho}__${tema}`);
+		if (exact) return exact;
+	}
+	const sameLitho = lithoIndex.get(litho) || [];
+	return sameLitho.length === 1 ? sameLitho[0] : null;
 };
 
 export default function GestRespPost() {
@@ -100,16 +113,16 @@ export default function GestRespPost() {
 				json.forEach((row, index) => {
 					const lookup = {};
 					Object.keys(row).forEach((k) => (lookup[String(k).trim().toUpperCase()] = row[k]));
-					const litho = normalizeMatchValue(lookup['LITHO'] ?? '');
+					const litho = normalizeMatchValue(lookup['LITHO'] ?? lookup['LITHOCODIGO'] ?? lookup['LITHO_CODIGO'] ?? lookup['CODIGO'] ?? '');
 					const tema = normalizeMatchValue(lookup['TEMA'] ?? '');
-					const match = litho && tema ? freshIndex.get(`${litho}__${tema}`) : null;
+					const match = findPostulantMatch({ litho, tema, ...freshIndex });
 					if (!match) { skipped++; return; }
 					const answers = {};
 					for (let i = 1; i <= 100; i++) {
 						const q = `PREG_${String(i).padStart(3, '0')}`;
 						answers[q] = parseAlternative(lookup[q] ?? '');
 					}
-					validRows.push({ id: Date.now() + index, litho, tema, postulantId: match.id, postulantName: match.names, answers });
+					validRows.push({ id: Date.now() + index, litho, tema: tema || normalizeMatchValue(match.tema), postulantId: match.id, postulantName: match.names, answers });
 					imported++;
 				});
 				setResponses((current) => [...current, ...validRows]);
@@ -205,7 +218,7 @@ export default function GestRespPost() {
 
 				const litho = normalizeMatchValue(getLookupValue(lookup, "LITHO"));
 				const tema = normalizeMatchValue(getLookupValue(lookup, "TEMA"));
-				const match = litho && tema ? freshIndex.get(`${litho}__${tema}`) : null;
+				const match = findPostulantMatch({ litho, tema, ...freshIndex });
 
 				if (!match) {
 					skipped += 1;
@@ -221,7 +234,7 @@ export default function GestRespPost() {
 				validRows.push({
 					id: Date.now() + index,
 					litho,
-					tema,
+					tema: tema || normalizeMatchValue(match.tema),
 					postulantId: match.id,
 					postulantName: match.names,
 					answers,
@@ -274,7 +287,7 @@ export default function GestRespPost() {
 					<h1 className="display-6 fw-bold mb-2">Importar respuestas de estudiantes</h1>
 					<p className="text-light-emphasis mb-0">
 						Solo se registran las filas que coinciden con un postulante existente por <strong>LITHO</strong> y <strong>TEMA</strong>.
-						El Excel debe traer <strong>LITHO</strong> y <strong>PREG_001</strong>.. <strong>PREG_100</strong>.
+						El Excel/DBF puede traer <strong>LITHO</strong> o <strong>LITHOCODIGO</strong> y <strong>PREG_001</strong>.. <strong>PREG_100</strong>.
 					</p>
 				</div>
 

@@ -36,7 +36,7 @@ public class Postulante {
     private String apellidoMat;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "carrera_id", nullable = false)
+    @JoinColumn(name = "carrera_id", nullable = true)
     private Carrera carrera;
 
     @Column(name = "fecha_creacion", nullable = false, updatable = false)

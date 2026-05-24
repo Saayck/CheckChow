@@ -3,6 +3,7 @@ import "../../../styles/dashboard.css";
 import { useMemo, useState, useRef, useEffect } from "react";
 import { getConfig } from "../configuracion_calificacion/configuracion_calificacion";
 import { getPlazas } from "../plazas/plazas";
+import { apiRequest } from "../../../utils/api";
 
 const getStored = (key) => {
 	try { return JSON.parse(localStorage.getItem(key) || "[]"); } catch { return []; }
@@ -42,6 +43,7 @@ const calcularDetalle = (estudianteAnswers, claveAnswers, config) => {
 
 export default function Resultados() {
 	const [selectedIdx, setSelectedIdx] = useState(null);
+	const [dbPlazas, setDbPlazas] = useState({});
 	const config = useMemo(() => getConfig(), []);
 	const detalleRef = useRef(null);
 
@@ -51,6 +53,20 @@ export default function Resultados() {
 		}
 	}, [selectedIdx]);
 
+	useEffect(() => {
+		apiRequest("/api/vacante", { redirectOnUnauthorized: false })
+			.then((data) => {
+				const map = {};
+				(data || []).forEach((v) => {
+					const carrera = v.carrera?.nombre;
+					if (!carrera) return;
+					map[carrera] = v.vacantes || 0;
+				});
+				setDbPlazas(map);
+			})
+			.catch(() => {});
+	}, []);
+
 	const resultados = useMemo(() => {
 		const config = getConfig();
 		const estudiantes = getStored("studentResponsesData");
@@ -59,7 +75,7 @@ export default function Resultados() {
 
 		const postulants = getStored("postulantsData");
 		const oficialData = getStored("officialResultsData");
-		const plazas = getPlazas();
+		const plazas = { ...getPlazas(), ...dbPlazas };
 
 		const claveIndex = new Map();
 		claves.forEach((c) => claveIndex.set(String(c.tema).trim().toUpperCase(), c.answers));
@@ -79,10 +95,20 @@ export default function Resultados() {
 			const dni = postulant?.dni || "";
 			const oficialEntry = oficialIndex.get(String(dni).trim());
 			const carrera = oficialEntry?.carrera || postulant?.carrera || "";
-			return { nombre: est.postulantName, litho: est.litho, tema, puntaje, detalle, carrera, dni };
+			return {
+				nombre: est.postulantName,
+				litho: est.litho,
+				tema,
+				puntaje,
+				detalle,
+				carrera,
+				dni,
+				condicionOficial: oficialEntry?.condicion || "",
+				meritoOficial: oficialEntry?.merito || "",
+			};
 		}).filter(Boolean);
 
-		// Condición OMR: top N por carrera según plazas asignadas
+		// Condicion OMR: siempre se calcula con puntaje OMR y vacantes del sistema.
 		const porCarrera = {};
 		items.forEach((item) => {
 			const c = item.carrera || "";
@@ -97,15 +123,21 @@ export default function Resultados() {
 			});
 		});
 
-		items.sort((a, b) => b.puntaje - a.puntaje);
+		items.sort((a, b) => {
+			const meritoA = Number(a.meritoOficial);
+			const meritoB = Number(b.meritoOficial);
+			if (Number.isFinite(meritoA) && Number.isFinite(meritoB)) return meritoA - meritoB;
+			return b.puntaje - a.puntaje;
+		});
 		return items;
-	}, []);
+	}, [dbPlazas]);
 
 	const selected = selectedIdx !== null ? resultados[selectedIdx] : null;
 
+	const maxScore = config.correcta * 100;
 	const puntajeColor = (puntaje) => {
-		if (puntaje >= 1600) return "#22c55e";
-		if (puntaje >= 1000) return "#eab308";
+		if (puntaje >= maxScore * 0.80) return "#22c55e";
+		if (puntaje >= maxScore * 0.50) return "#eab308";
 		if (puntaje >= 0) return "#f97316";
 		return "#ef4444";
 	};
@@ -140,6 +172,7 @@ export default function Resultados() {
 												<th>LITHO</th>
 												<th>TEMA</th>
 												<th>Puntaje</th>
+												<th style={{ textAlign: "center" }}>Condición PDF</th>
 												<th style={{ textAlign: "center" }}>Condición OMR</th>
 												<th></th>
 											</tr>
@@ -155,6 +188,17 @@ export default function Resultados() {
 														<strong style={{ color: puntajeColor(item.puntaje), fontSize: "1rem" }}>
 															{item.puntaje.toFixed(3)}
 														</strong>
+													</td>
+													<td style={{ textAlign: "center" }}>
+														{item.condicionOficial === "INGRESO" && (
+															<span style={{ color: "#22c55e", fontWeight: 700, fontSize: "0.8rem" }}>INGRESO</span>
+														)}
+														{item.condicionOficial === "NO INGRESO" && (
+															<span style={{ color: "#ef4444", fontSize: "0.8rem" }}>NO INGRESO</span>
+														)}
+														{!item.condicionOficial && (
+															<span style={{ color: "#475569", fontSize: "0.75rem" }}>—</span>
+														)}
 													</td>
 													<td style={{ textAlign: "center" }}>
 														{item.condicionOMR === "INGRESO" && (
@@ -199,7 +243,7 @@ export default function Resultados() {
 										<h2 className="metric-value mb-0" style={{ color: puntajeColor(selected.puntaje), fontSize: "1.6rem" }}>
 											{selected.puntaje.toFixed(3)}
 										</h2>
-										<p className="mb-0" style={{ fontSize: "0.78rem", color: "#94a3b8" }}>/ 2000 pts</p>
+										<p className="mb-0" style={{ fontSize: "0.78rem", color: "#94a3b8" }}>/ {maxScore} pts</p>
 									</div>
 								</div>
 

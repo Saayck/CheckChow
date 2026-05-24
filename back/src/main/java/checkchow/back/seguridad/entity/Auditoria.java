@@ -31,12 +31,10 @@ public class Auditoria {
     private Sesion sesion;
 
     @Enumerated(EnumType.STRING)
-    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Column
     private TAccion accion;
 
     @Enumerated(EnumType.STRING)
-    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Column(name = "metodo_http")
     private TMetodoHttp metodoHttp;
 

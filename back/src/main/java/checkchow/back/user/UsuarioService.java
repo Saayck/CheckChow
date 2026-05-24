@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -65,8 +66,8 @@ public class UsuarioService {
         return usuarioRepo.findByEmail(correo);
     }
 
-    public List<Usuario> listarUsuarios() {
-        return usuarioRepo.findAll(Sort.by(Sort.Direction.DESC, "id"));
+    public List<Usuario> listarUsuarios(int page, int size) {
+        return usuarioRepo.findAll(PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "id"))).getContent();
     }
 
     public void eliminarUsuario(Long id) {

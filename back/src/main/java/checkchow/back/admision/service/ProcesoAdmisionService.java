@@ -88,6 +88,9 @@ public class ProcesoAdmisionService {
         proceso.setDescription(
                 data.getDescription());
 
+        proceso.setTipoProcesoAdmision(
+                data.getTipoProcesoAdmision());
+
         proceso.setFechaExamen(
                 data.getFechaExamen());
 

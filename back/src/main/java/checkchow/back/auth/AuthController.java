@@ -11,6 +11,7 @@ import checkchow.back.auth.dto.AuthRegisterRequest;
 import checkchow.back.auth.dto.AuthRegisterResponse;
 import checkchow.back.auth.dto.AuthRequest;
 import checkchow.back.auth.dto.AuthResponse;
+import checkchow.back.auth.dto.RefreshRequest;
 import checkchow.back.config.jwt.service.TokenBlacklistService;
 import checkchow.back.seguridad.service.AuditoriaService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -57,6 +58,15 @@ public class AuthController {
         } else {
             return ResponseEntity.badRequest().body(response);
         }
+    }
+
+    @PostMapping("/refresh")
+    public ResponseEntity<AuthResponse> refresh(@RequestBody RefreshRequest refreshRequest) {
+        AuthResponse response = authService.refreshAccessToken(refreshRequest.getRefreshToken());
+        if ("OK".equals(response.getStatus())) {
+            return ResponseEntity.ok(response);
+        }
+        return ResponseEntity.status(401).body(response);
     }
 
     @PostMapping("/logout")

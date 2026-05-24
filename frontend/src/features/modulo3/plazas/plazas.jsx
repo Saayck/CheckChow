@@ -1,6 +1,7 @@
 import Header from "../../../components/header";
 import "../../../styles/dashboard.css";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { apiRequest } from "../../../utils/api";
 
 const PLAZAS_KEY = "plazasData";
 const OFFICIAL_KEY = "officialResultsData";
@@ -15,11 +16,22 @@ export default function Plazas() {
 	const oficial = useMemo(() => getStored(OFFICIAL_KEY, []), []);
 	const [plazas, setPlazas] = useState(() => getStored(PLAZAS_KEY, {}));
 	const [saved, setSaved] = useState(false);
+	const [apiCarreras, setApiCarreras] = useState([]);
+
+	useEffect(() => {
+		apiRequest("/api/carrera")
+			.then((data) => {
+				const nombres = (data || []).filter((c) => c.activo).map((c) => c.nombre);
+				setApiCarreras(nombres);
+			})
+			.catch(() => {});
+	}, []);
 
 	const carreras = useMemo(() => {
-		const set = new Set(oficial.map((r) => r.carrera).filter(Boolean));
+		const fromPdf = oficial.map((r) => r.carrera).filter(Boolean);
+		const set = new Set([...apiCarreras, ...fromPdf]);
 		return [...set].sort();
-	}, [oficial]);
+	}, [oficial, apiCarreras]);
 
 	const statsCarrera = useMemo(() => {
 		const map = {};
@@ -61,8 +73,8 @@ export default function Plazas() {
 					<h1 className="display-6 fw-bold mb-2">Asignación de plazas</h1>
 					<p className="text-light-emphasis mb-0">
 						{carreras.length > 0
-							? `${carreras.length} carrera(s) detectadas del PDF oficial. Define cuántas plazas disponibles tiene cada carrera.`
-							: "Carga primero el PDF oficial en la sección Resultados Oficiales para ver las carreras disponibles."}
+							? `${carreras.length} carrera(s) disponibles (del sistema y/o PDF oficial). Define cuántas plazas tiene cada carrera.`
+							: "No hay carreras registradas. Créalas en Gestión de Carreras o carga el PDF oficial."}
 					</p>
 				</div>
 
@@ -97,7 +109,7 @@ export default function Plazas() {
 					<div className="glass-card p-4">
 						<p className="text-light-emphasis mb-2">No hay carreras disponibles todavía.</p>
 						<p className="mb-0" style={{ fontSize: "0.88rem", color: "#64748b" }}>
-							Ve a <strong style={{ color: "#cbd5e1" }}>PDF Oficial</strong> en el menú y carga el PDF de resultados para que las carreras aparezcan aquí automáticamente.
+							Ve a <strong style={{ color: "#cbd5e1" }}>Gestión de Carreras</strong> para registrar carreras manualmente, o carga el PDF en <strong style={{ color: "#cbd5e1" }}>PDF Oficial</strong> para importarlas automáticamente.
 						</p>
 					</div>
 				) : (

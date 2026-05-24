@@ -1,10 +1,11 @@
 import Header from "../../../components/header";
 import "../../../styles/dashboard.css";
 import { writeRowsToXlsx } from "../../../utils/excel";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { getConfig } from "../configuracion_calificacion/configuracion_calificacion";
 import { getOfficialResults } from "../resultados_oficiales/resultados_oficiales";
 import { getPlazas } from "../plazas/plazas";
+import { apiRequest } from "../../../utils/api";
 
 const getStored = (key) => {
 	try { return JSON.parse(localStorage.getItem(key) || "[]"); } catch { return []; }
@@ -179,6 +180,21 @@ export default function ExportarResultados() {
 	const [titulo, setTitulo] = useState("RESULTADOS DE EXAMEN DE ADMISIÓN");
 	const [subtitulo, setSubtitulo] = useState("");
 	const [filtroCarrera, setFiltroCarrera] = useState("__TODAS__");
+	const [dbPlazas, setDbPlazas] = useState({});
+
+	useEffect(() => {
+		apiRequest("/api/vacante", { redirectOnUnauthorized: false })
+			.then((data) => {
+				const map = {};
+				(data || []).forEach((v) => {
+					const carrera = v.carrera?.nombre;
+					if (!carrera) return;
+					map[carrera] = v.vacantes || 0;
+				});
+				setDbPlazas(map);
+			})
+			.catch(() => {});
+	}, []);
 
 	const oficiales = useMemo(() => {
 		const raw = getOfficialResults();
@@ -222,7 +238,7 @@ export default function ExportarResultados() {
 		}).filter(Boolean);
 
 		// Condición OMR: top N por carrera según plazas (se calcula ANTES de filtrar)
-		const plazas = getPlazas();
+		const plazas = { ...getPlazas(), ...dbPlazas };
 		const _tienePlazas = Object.values(plazas).some((v) => v > 0);
 		const porCarreraPlaza = {};
 		items.forEach((item) => {
@@ -247,7 +263,12 @@ export default function ExportarResultados() {
 			? items
 			: items.filter((i) => i.carreraOficial === filtroCarrera);
 
-		filtrados.sort((a, b) => b.puntajeOMR - a.puntajeOMR);
+		filtrados.sort((a, b) => {
+			const meritoA = Number(a.meritoOficial);
+			const meritoB = Number(b.meritoOficial);
+			if (Number.isFinite(meritoA) && Number.isFinite(meritoB)) return meritoA - meritoB;
+			return b.puntajeOMR - a.puntajeOMR;
+		});
 		const conMerito = calcularMerito(filtrados);
 
 		return {
@@ -259,7 +280,7 @@ export default function ExportarResultados() {
 				...item,
 			})),
 		};
-	}, [config, oficiales, filtroCarrera]);
+	}, [config, oficiales, filtroCarrera, dbPlazas]);
 
 	const tieneOficial = oficiales.size > 0;
 

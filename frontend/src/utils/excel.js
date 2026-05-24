@@ -1,4 +1,23 @@
 export const readFirstSheetRows = async (file) => {
+	const ext = file.name.split(".").pop().toLowerCase();
+	if (ext === "xls") {
+		const XLSX = await import("xlsx");
+		const arrayBuffer = await file.arrayBuffer();
+		const workbook = XLSX.read(arrayBuffer, { type: "array" });
+		const sheet = workbook.Sheets[workbook.SheetNames[0]];
+		const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
+		const headers = (rows[0] || []).map((header) => String(header || "").trim());
+
+		return rows.slice(1).map((row) => {
+			const item = {};
+			headers.forEach((header, index) => {
+				if (!header) return;
+				item[header] = row[index] ?? "";
+			});
+			return item;
+		});
+	}
+
 	const { readSheet } = await import("read-excel-file/browser");
 	const sheetRows = await readSheet(file);
 	const headers = (sheetRows[0] || []).map((header) => String(header || "").trim());

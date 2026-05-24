@@ -8,6 +8,7 @@ import checkchow.back.admision.entity.Carrera;
 @Repository
 public interface CarreraRepository extends JpaRepository<Carrera, Integer> {
     Optional<Carrera> findByCodigo(String codigo);
-    
+    Optional<Carrera> findByCodigoIgnoreCase(String codigo);
+    Optional<Carrera> findByNombreIgnoreCase(String nombre);
 }
 
