@@ -39,7 +39,7 @@ public class RegistroService {
         response.setId(usuario.getId());
         response.setNombre_completo(usuario.getNombre_completo());
         response.setEmail(usuario.getEmail());
-        response.setCreatedAt(usuario.getFechaCreacion().toLocalDateTime());
+        response.setCreatedAt(usuario.getFechaCreacion());
         return response;
     }
 }

@@ -24,10 +24,6 @@ public class AuthRegisterRequest {
     @Size(max = 100, message = "El correo no puede exceder 100 caracteres")
     private String email;
 
-    @NotBlank(message = "El celular no puede estar vacío")
-    @Pattern(regexp = "\\d{9}", message = "El celular debe tener exactamente 9 dígitos")
-    private String celular;
-
     @NotBlank(message = "La contraseña no puede estar vacía")
     @Size(min = 8, message = "La contraseña debe tener al menos 8 caracteres")
     @Pattern(regexp = "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&]).{8,}$",

@@ -46,7 +46,7 @@ public class AuthController {
     public ResponseEntity<AuthResponse> login(@Valid @RequestBody AuthRequest loginRequest) {
         log.info("=== CONTROLLER LOGIN DEBUG ===");
         log.info("Recibido AuthRequest: {}", loginRequest);
-        log.info("Correo: '{}'", loginRequest.getCorreo());
+        log.info("Correo: '{}'", loginRequest.getEmail());
         log.info("Password: '{}'", loginRequest.getPassword());
         log.info("===============================");
 
