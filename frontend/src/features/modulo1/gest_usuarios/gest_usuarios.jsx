@@ -10,7 +10,7 @@ const emptyForm = { name: "", role: "ADMIN", email: "", password: "", status: "A
 
 const toViewUser = (user) => ({
 	id: user.id,
-	name: user.nombre_completo || "",
+	name: user.nombreCompleto || "",
 	role: user.rol || "ADMIN",
 	email: user.email || "",
 	status: user.activo === false ? "Suspendido" : "Activo",
@@ -83,7 +83,7 @@ export default function GestUsuarios() {
 		}
 
 		const payload = {
-			nombre_completo: name,
+			nombreCompleto: name,
 			email,
 			rol: formData.role,
 			activo: formData.status === "Activo",

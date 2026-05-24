@@ -37,7 +37,7 @@ public class RegistroService {
 
         // Crear usuario
         Usuario usuario = new Usuario();
-        usuario.setNombre_completo(request.getNombre_completo());
+        usuario.setNombreCompleto(request.getNombre_completo());
         usuario.setEmail(request.getEmail());
         usuario.setPassword(request.getPassword());
         usuario.setRol(TRol.ADMIN);
@@ -56,7 +56,7 @@ public class RegistroService {
     private AuthRegisterResponse mapToResponse(Usuario usuario) {
         AuthRegisterResponse response = new AuthRegisterResponse();
         response.setId(usuario.getId());
-        response.setNombre_completo(usuario.getNombre_completo());
+        response.setNombre_completo(usuario.getNombreCompleto());
         response.setEmail(usuario.getEmail());
         response.setCreatedAt(usuario.getFechaCreacion());
         return response;
