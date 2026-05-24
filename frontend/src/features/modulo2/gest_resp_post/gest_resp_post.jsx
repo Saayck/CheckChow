@@ -1,6 +1,7 @@
 import Header from "../../../components/header";
 import "../../../styles/dashboard.css";
 import { useEffect, useRef, useState } from "react";
+import { readFirstSheetRows } from "../../../utils/excel";
 
 const STORAGE_KEY = "studentResponsesData";
 const POSTULANTS_KEY = "postulantsData";
@@ -83,15 +84,16 @@ export default function GestRespPost() {
 
 		const ext = file.name.split('.').pop().toLowerCase();
 
-		if (ext === 'xlsx' || ext === 'xls') {
+		if (ext === 'xls') {
+			setMessage("El formato .xls no está soportado. Usa un archivo .xlsx o .dbf.");
+			return;
+		}
+
+		if (ext === 'xlsx') {
 			try {
 				const currentPostulants = getStoredJson(POSTULANTS_KEY, []);
 				const freshIndex = buildPostulantIndex(currentPostulants);
-				const { read, utils } = await import('xlsx');
-				const data = await file.arrayBuffer();
-				const workbook = read(data, { type: 'array' });
-				const sheet = workbook.Sheets[workbook.SheetNames[0]];
-				const json = utils.sheet_to_json(sheet, { defval: '' });
+				const json = await readFirstSheetRows(file);
 
 				let imported = 0, skipped = 0;
 				const validRows = [];
@@ -279,7 +281,7 @@ export default function GestRespPost() {
 				<div className="d-flex flex-wrap justify-content-end gap-2 mb-4">
 					<label className="btn action-button action-button-secondary" style={{ cursor: "pointer" }}>
 						Importar DBF / Excel
-						<input type="file" accept=".dbf,.xlsx,.xls" onChange={(e) => handleFileImport(e.target.files?.[0])} style={{ display: "none" }} />
+						<input type="file" accept=".dbf,.xlsx" onChange={(e) => handleFileImport(e.target.files?.[0])} style={{ display: "none" }} />
 					</label>
 					<button type="button" className="btn action-button action-button-ghost" onClick={handleClear}>
 						Limpiar

@@ -1,6 +1,7 @@
 import Header from "../../../components/header";
 import "../../../styles/dashboard.css";
 import { useMemo, useState, useEffect, useRef } from "react";
+import { readFirstSheetRows } from "../../../utils/excel";
 
 const initialPostulants = [
 	{ id: 1, dni: "12345678", names: "Juan Carlos Pérez Gómez", litho: "", tema: "" },
@@ -93,14 +94,14 @@ export default function GestPostulantes() {
 
 		const ext = file.name.split('.').pop().toLowerCase();
 
-		// Excel import via xlsx library
-		if (ext === 'xlsx' || ext === 'xls') {
+		if (ext === 'xls') {
+			setImportMessage("El formato .xls no está soportado. Usa un archivo .xlsx o .dbf.");
+			return;
+		}
+
+		if (ext === 'xlsx') {
 			try {
-				const { read, utils } = await import('xlsx');
-				const data = await file.arrayBuffer();
-				const workbook = read(data, { type: 'array' });
-				const sheet = workbook.Sheets[workbook.SheetNames[0]];
-				const json = utils.sheet_to_json(sheet, { defval: '' });
+				const json = await readFirstSheetRows(file);
 				const rows = json.map((row, idx) => {
 					const lookup = {};
 					Object.keys(row).forEach((k) => (lookup[String(k).trim().toUpperCase()] = row[k]));
@@ -240,7 +241,7 @@ export default function GestPostulantes() {
 						</button>
 						<label className="btn action-button action-button-secondary" style={{ cursor: 'pointer' }}>
 							Importar DBF / Excel
-							<input type="file" accept=".dbf,.xlsx,.xls" onChange={(e) => handleFileImport(e.target.files?.[0])} style={{ display: 'none' }} />
+							<input type="file" accept=".dbf,.xlsx" onChange={(e) => handleFileImport(e.target.files?.[0])} style={{ display: 'none' }} />
 						</label>
 						<button type="button" className="btn action-button action-button-ghost" onClick={() => { setPostulants([]); setImportMessage(""); }}>
 							Limpiar

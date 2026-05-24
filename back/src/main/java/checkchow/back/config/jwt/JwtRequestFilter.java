@@ -67,7 +67,8 @@ public class JwtRequestFilter extends OncePerRequestFilter {
             UserDetails userDetails = this.userDetailsService.loadUserByUsername(username);
             if (jwtUtil.validateToken(jwt, userDetails)) {
                 List<String> roles = jwtUtil.extractRoles(jwt);
-                List<GrantedAuthority> authorities = roles.stream()
+                List<String> effectiveRoles = roles != null ? roles : List.of();
+                List<GrantedAuthority> authorities = effectiveRoles.stream()
                         .map(SimpleGrantedAuthority::new)
                         .collect(Collectors.toList());
 

@@ -32,40 +32,143 @@ const EyeSlashIcon = ({ className }) => (
   </svg>
 );
 
+const API_BASE_URL = process.env.REACT_APP_API_URL || "http://localhost:8080";
+const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&]).{8,}$/;
+
 export default function Login() {
   const navigate = useNavigate();
   const [mostrarPassword, setMostrarPassword] = useState(false);
+  const [isRegisterMode, setIsRegisterMode] = useState(false);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [nombreCompleto, setNombreCompleto] = useState("");
+  const [email, setEmail] = useState("");
+  const [registerPassword, setRegisterPassword] = useState("");
+  const [registerErrors, setRegisterErrors] = useState({});
+  const [registerMessage, setRegisterMessage] = useState("");
   const [error, setError] = useState("");
 
-  const validUsers = [
-    { username: "admin", password: "admin123", role: "Administrador" },
-    { username: "operador", password: "omr2026", role: "Operador" },
-  ];
+  const validateRegisterForm = () => {
+    const errors = {};
+    const trimmedName = nombreCompleto.trim();
+    const trimmedEmail = email.trim();
 
-  const handleSubmit = (event) => {
+    if (!trimmedName) {
+      errors.nombre_completo = "Los nombres no pueden estar vacios";
+    } else if (trimmedName.length > 120) {
+      errors.nombre_completo = "Los nombres no pueden exceder 120 caracteres";
+    }
+
+    if (!trimmedEmail) {
+      errors.email = "El correo no puede estar vacio";
+    } else if (!emailRegex.test(trimmedEmail)) {
+      errors.email = "El correo debe tener un formato valido";
+    } else if (trimmedEmail.length > 100) {
+      errors.email = "El correo no puede exceder 100 caracteres";
+    }
+
+    if (!registerPassword.trim()) {
+      errors.password = "La contraseÃ±a no puede estar vacÃ­a";
+    } else if (registerPassword.length < 8) {
+      errors.password = "La contraseÃ±a debe tener al menos 8 caracteres";
+    } else if (!passwordRegex.test(registerPassword)) {
+      errors.password = "La contraseÃ±a debe incluir al menos una mayÃºscula, una minÃºscula, un nÃºmero y un sÃ­mbolo";
+    }
+
+    setRegisterErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const handleSubmit = async (event) => {
     event.preventDefault();
     setError("");
-    if (!username.trim() || !password) {
-      setError("Usuario y contraseña son obligatorios.");
+    const loginEmail = username.trim();
+
+    if (!loginEmail || !password) {
+      setError("Correo y contraseña son obligatorios.");
       return;
     }
 
-    const matchedUser = validUsers.find(
-      (user) => user.username === username.trim().toLowerCase() && user.password === password
-    );
-
-    if (!matchedUser) {
-      setError("Credenciales inválidas. Prueba con admin / admin123 u operador / omr2026.");
+    if (!emailRegex.test(loginEmail)) {
+      setError("El correo debe tener un formato válido.");
       return;
     }
 
-    localStorage.setItem(
-      "checkchow_session",
-      JSON.stringify({ username: matchedUser.username, role: matchedUser.role })
-    );
-    navigate("/panel");
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: loginEmail, password }),
+      });
+      const data = await response.json().catch(() => null);
+
+      if (!response.ok || data?.status !== "OK") {
+        setError(data?.message || "Credenciales inválidas.");
+        return;
+      }
+
+      localStorage.setItem(
+        "checkchow_session",
+        JSON.stringify({
+          token: data.token,
+          userId: data.userId,
+          nombre: data.nombre,
+          email: loginEmail,
+        })
+      );
+      navigate("/panel");
+    } catch (err) {
+      setError("No se pudo conectar con la API de login.");
+    }
+  };
+
+  const handleRegisterSubmit = async (event) => {
+    event.preventDefault();
+    setError("");
+    setRegisterMessage("");
+
+    if (!validateRegisterForm()) {
+      return;
+    }
+
+    const payload = {
+      nombre_completo: nombreCompleto.trim(),
+      email: email.trim(),
+      password: registerPassword,
+    };
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/auth/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await response.json().catch(() => null);
+
+      if (!response.ok || data?.success === false) {
+        setError(data?.message || "No se pudo registrar el usuario.");
+        return;
+      }
+
+      setRegisterMessage("Usuario registrado exitosamente. Ahora inicia sesión.");
+      setUsername(payload.email);
+      setPassword("");
+      setNombreCompleto("");
+      setEmail("");
+      setRegisterPassword("");
+      setRegisterErrors({});
+      setIsRegisterMode(false);
+    } catch (err) {
+      setError("No se pudo conectar con la API de registro.");
+    }
+  };
+
+  const handleModeChange = () => {
+    setIsRegisterMode(!isRegisterMode);
+    setError("");
+    setRegisterMessage("");
+    setRegisterErrors({});
   };
 
   return (
@@ -80,9 +183,93 @@ export default function Login() {
           <img src={logoImg} alt="CheckChow" />
         </div>
 
-        <h1 id="login-title">Bienvenido</h1>
-        <p>Sistema de Gestión de Asistencia</p>
+        <h1 id="login-title">{isRegisterMode ? "Crear cuenta" : "Bienvenido"}</h1>
+        <p>Sistema de GestiÃ³n de Asistencia</p>
 
+        {isRegisterMode ? (
+        <form onSubmit={handleRegisterSubmit} noValidate>
+
+          <div className="input-container with-error">
+            <span className="input-icon" aria-hidden="true"><PersonIcon /></span>
+
+            <input
+              id="nombre_completo"
+              name="nombre_completo"
+              value={nombreCompleto}
+              onChange={(e) => setNombreCompleto(e.target.value)}
+              onBlur={() => setNombreCompleto(nombreCompleto.trim())}
+              type="text"
+              placeholder="Nombre completo"
+              className="form-control"
+              autoComplete="name"
+              aria-label="Nombre completo"
+            />
+            {registerErrors.nombre_completo && (
+              <span className="field-error" role="alert">{registerErrors.nombre_completo}</span>
+            )}
+          </div>
+
+          <div className="input-container with-error">
+            <span className="input-icon" aria-hidden="true"><PersonIcon /></span>
+
+            <input
+              id="email"
+              name="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              onBlur={() => setEmail(email.trim())}
+              type="email"
+              placeholder="Correo electrÃ³nico"
+              className="form-control"
+              autoComplete="email"
+              aria-label="Correo electrÃ³nico"
+            />
+            {registerErrors.email && (
+              <span className="field-error" role="alert">{registerErrors.email}</span>
+            )}
+          </div>
+
+          <div className="input-container with-error">
+            <span className="input-icon" aria-hidden="true"><LockIcon /></span>
+
+            <input
+              id="register-password"
+              name="password"
+              value={registerPassword}
+              onChange={(e) => setRegisterPassword(e.target.value)}
+              type={mostrarPassword ? "text" : "password"}
+              placeholder="ContraseÃ±a"
+              className="form-control"
+              autoComplete="new-password"
+              aria-label="ContraseÃ±a"
+            />
+
+            <button
+              type="button"
+              className="eye-button"
+              aria-label={mostrarPassword ? "Ocultar contraseÃ±a" : "Mostrar contraseÃ±a"}
+              onClick={() => setMostrarPassword(!mostrarPassword)}
+            >
+              {mostrarPassword ? <EyeSlashIcon /> : <EyeIcon />}
+            </button>
+            {registerErrors.password && (
+              <span className="field-error" role="alert">{registerErrors.password}</span>
+            )}
+          </div>
+
+          {error && (
+            <div className="alert-error" role="alert">{error}</div>
+          )}
+          {registerMessage && (
+            <div className="alert-success" role="status">{registerMessage}</div>
+          )}
+
+          <button type="submit" className="btn-login">
+            Registrarse
+          </button>
+
+        </form>
+        ) : (
         <form onSubmit={handleSubmit} noValidate>
 
           <div className="input-container">
@@ -94,10 +281,10 @@ export default function Login() {
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               type="text"
-              placeholder="Usuario"
+              placeholder="Correo electrónico"
               className="form-control"
-              autoComplete="username"
-              aria-label="Usuario"
+              autoComplete="email"
+              aria-label="Correo electrónico"
               required
             />
           </div>
@@ -111,17 +298,17 @@ export default function Login() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               type={mostrarPassword ? "text" : "password"}
-              placeholder="Contraseña"
+              placeholder="ContraseÃ±a"
               className="form-control"
               autoComplete="current-password"
-              aria-label="Contraseña"
+              aria-label="ContraseÃ±a"
               required
             />
 
             <button
               type="button"
               className="eye-button"
-              aria-label={mostrarPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+              aria-label={mostrarPassword ? "Ocultar contraseÃ±a" : "Mostrar contraseÃ±a"}
               onClick={() => setMostrarPassword(!mostrarPassword)}
             >
               {mostrarPassword ? <EyeSlashIcon /> : <EyeIcon />}
@@ -131,13 +318,20 @@ export default function Login() {
           {error && (
             <div className="alert-error" role="alert">{error}</div>
           )}
+          {registerMessage && (
+            <div className="alert-success" role="status">{registerMessage}</div>
+          )}
 
           <button type="submit" className="btn-login" disabled={!username || !password}>
-            Iniciar Sesión
+            Iniciar SesiÃ³n
           </button>
 
         </form>
+        )}
 
+        <button type="button" className="auth-toggle" onClick={handleModeChange}>
+          {isRegisterMode ? "Ya tengo una cuenta" : "Crear una cuenta"}
+        </button>
 
       </div>
 

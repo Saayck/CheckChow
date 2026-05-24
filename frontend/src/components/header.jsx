@@ -1,11 +1,13 @@
-import { Link, NavLink } from "react-router-dom";
+import { Link, NavLink, useNavigate } from "react-router-dom";
 import logoImg from "../assets/favicon.png";
 import "../styles/dashboard.css";
+import { apiRequest } from "../utils/api";
 
 const navItems = [
 	{ to: "/panel", label: "Inicio", icon: "bi-grid-1x2" },
 	{ to: "/usuarios", label: "Usuarios", icon: "bi-people" },
 	{ to: "/postulantes", label: "Postulantes", icon: "bi-person-vcard" },
+	{ to: "/omr", label: "OMR", icon: "bi-upc-scan" },
 	{ to: "/respuestas_postulantes", label: "Respuestas", icon: "bi-diagram-3" },
 	{ to: "/respuestas", label: "Claves", icon: "bi-diagram-3" },
 	{ to: "/configuracion-calificacion", label: "Calificación", icon: "bi-sliders" },
@@ -17,6 +19,18 @@ const navItems = [
 ];
 
 function Header() {
+	const navigate = useNavigate();
+
+	const handleLogout = async () => {
+		try {
+			await apiRequest("/api/auth/logout", { method: "POST" });
+		} catch {
+			// Si el token ya expiró, igual se limpia la sesión local.
+		}
+		localStorage.removeItem("checkchow_session");
+		navigate("/");
+	};
+
 	return (
 		<nav className="navbar navbar-expand-lg navbar-dark dashboard-navbar sticky-top">
 			<div className="container-fluid px-3 px-lg-4">
@@ -58,9 +72,9 @@ function Header() {
 							</li>
 						))}
 						<li className="nav-item ms-lg-2">
-							<Link className="btn btn-outline-light btn-sm px-3" to="/">
+							<button className="btn btn-outline-light btn-sm px-3" onClick={handleLogout}>
 								Cerrar sesión
-							</Link>
+							</button>
 						</li>
 					</ul>
 				</div>

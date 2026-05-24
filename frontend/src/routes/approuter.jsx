@@ -5,6 +5,7 @@ import GestUsuarios from "../features/modulo1/gest_usuarios/gest_usuarios";
 import Auditoria from "../features/modulo1/auditoria/auditoria";
 import GestRespPost from "../features/modulo2/gest_resp_post/gest_resp_post";
 import GestPostulantes from "../features/modulo2/gest_postulantes/gest_postulantes";
+import Omr from "../features/modulo2/omr/omr";
 import Respuestas from "../features/modulo2/proceso_respuestas/respuestas";
 import GestResultados from "../features/modulo3/gest_resultados/gest_resultados";
 import Resultados from "../features/modulo3/resultados/resultados";
@@ -23,6 +24,7 @@ function AppRouter() {
         <Route path="/auditoria" element={<Auditoria />} />
         <Route path="/respuestas_postulantes" element={<GestRespPost />} />
         <Route path="/postulantes" element={<GestPostulantes />} />
+        <Route path="/omr" element={<Omr />} />
         <Route path="/respuestas" element={<Respuestas />} />
         <Route path="/gestion-resultados" element={<GestResultados />} />
         <Route path="/resultados" element={<Resultados />} />

@@ -10,7 +10,7 @@ public class WebCorsConfig implements WebMvcConfigurer {
     @Override
     public void addCorsMappings(CorsRegistry registry) {
         registry.addMapping("/api/**")
-                .allowedOrigins("http://localhost:4200") //obligatorio debido al allowCredentials true
+                .allowedOrigins("http://localhost:3000", "http://localhost:4200") //obligatorio debido al allowCredentials true
                 .allowedMethods("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS")
                 .allowedHeaders("*")
                 .exposedHeaders("Authorization") // header que se necesita leer en el cliente

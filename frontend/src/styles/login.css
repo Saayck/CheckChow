@@ -98,6 +98,10 @@
     margin-bottom: 20px;
 }
 
+.input-container.with-error {
+    margin-bottom: 18px;
+}
+
 .input-icon {
     position: absolute;
     left: 15px;
@@ -137,6 +141,24 @@
     text-align: center;
 }
 
+.alert-success {
+    background: rgba(34, 197, 94, 0.12);
+    color: #bbf7d0;
+    padding: 10px 12px;
+    border-radius: 8px;
+    margin-bottom: 12px;
+    text-align: center;
+}
+
+.field-error {
+    display: block;
+    color: #fecaca;
+    font-size: 0.82rem;
+    line-height: 1.25;
+    margin-top: 6px;
+    padding-left: 4px;
+}
+
 
 .form-control {
     height: 52px;
@@ -174,4 +196,20 @@
 .btn-login:hover {
     transform: translateY(-2px);
     box-shadow: 0 12px 30px rgba(14,165,233, .18), 0 6px 18px rgba(34,197,94, .12);
+}
+
+.auth-toggle {
+    display: block;
+    margin: 16px auto 0;
+    background: transparent;
+    border: none;
+    color: #86efac;
+    font-weight: 600;
+    padding: 4px 8px;
+}
+
+.auth-toggle:hover,
+.auth-toggle:focus-visible {
+    color: #dcfce7;
+    outline: none;
 }

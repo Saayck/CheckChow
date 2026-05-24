@@ -9,6 +9,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
+import java.net.InetAddress;
 import java.time.OffsetDateTime;
 
 @Data
@@ -31,7 +32,7 @@ public class Auditoria {
 
     @Enumerated(EnumType.STRING)
     @JdbcTypeCode(SqlTypes.NAMED_ENUM)
-    @Column(nullable = false)
+    @Column
     private TAccion accion;
 
     @Enumerated(EnumType.STRING)
@@ -56,8 +57,9 @@ public class Auditoria {
     @Column(name = "valor_nuevo")
     private String valorNuevo;
 
+    @JdbcTypeCode(SqlTypes.INET)
     @Column(name = "ip_origen", columnDefinition = "INET")
-    private String ipOrigen;
+    private InetAddress ipOrigen;
 
     @Column(name = "user_agent", columnDefinition = "TEXT")
     private String userAgent;

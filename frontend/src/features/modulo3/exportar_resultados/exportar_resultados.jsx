@@ -1,5 +1,6 @@
 import Header from "../../../components/header";
 import "../../../styles/dashboard.css";
+import { writeRowsToXlsx } from "../../../utils/excel";
 import { useMemo, useState } from "react";
 import { getConfig } from "../configuracion_calificacion/configuracion_calificacion";
 import { getOfficialResults } from "../resultados_oficiales/resultados_oficiales";
@@ -281,7 +282,6 @@ export default function ExportarResultados() {
 
 	const handleExportExcel = async () => {
 		if (!filas.length) return;
-		const { utils, writeFile } = await import("xlsx");
 		const dataRows = filas.map((f) => {
 			const row = {
 				SEC: f.sec,
@@ -306,14 +306,22 @@ export default function ExportarResultados() {
 			{},
 			...dataRows,
 		];
-		const ws = utils.json_to_sheet(data);
-		ws["!cols"] = [
-			{ wch: 7 }, { wch: 12 }, { wch: 38 }, { wch: 30 },
-			{ wch: 12 }, { wch: 8 }, { wch: 14 }, { wch: 12 },
-		];
-		const wb = utils.book_new();
-		utils.book_append_sheet(wb, ws, "Resultados");
-		writeFile(wb, "resultados.xlsx");
+		await writeRowsToXlsx(
+			data,
+			[
+				{ header: "SEC", key: "SEC", width: 7 },
+				{ header: "CODIGO", key: "CODIGO", width: 12 },
+				{ header: "NOMBRE", key: "NOMBRE", width: 38 },
+				{ header: "CARRERA", key: "CARRERA", width: 30 },
+				{ header: "PUNTAJE OMR", key: "PUNTAJE OMR", width: 12 },
+				{ header: "MERITO", key: "MERITO", width: 8 },
+				{ header: "PUNTAJE OFICIAL", key: "PUNTAJE OFICIAL", width: 14 },
+				{ header: "CONDICION PDF", key: "CONDICION PDF", width: 12 },
+				{ header: "CONDICION OMR", key: "CONDICION OMR", width: 12 },
+			],
+			"Resultados",
+			"resultados.xlsx"
+		);
 	};
 
 	return (
