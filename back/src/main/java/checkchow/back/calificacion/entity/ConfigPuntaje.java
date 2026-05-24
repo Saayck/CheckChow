@@ -6,6 +6,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import checkchow.back.admision.entity.ProcesoAdmision;
 
@@ -43,7 +44,7 @@ public class ConfigPuntaje {
     private Usuario modificadoPor;
 
     @Column(name = "fecha_modificacion", nullable = false)
-    private OffsetDateTime fechaModificacion = OffsetDateTime.now();
+    private LocalDateTime fechaModificacion = LocalDateTime.now();
 
     public Integer getId() {
         return id;
@@ -109,11 +110,11 @@ public class ConfigPuntaje {
         this.modificadoPor = modificadoPor;
     }
 
-    public OffsetDateTime getFechaModificacion() {
+    public LocalDateTime getFechaModificacion() {
         return fechaModificacion;
     }
 
-    public void setFechaModificacion(OffsetDateTime fechaModificacion) {
+    public void setFechaModificacion(LocalDateTime fechaModificacion) {
         this.fechaModificacion = fechaModificacion;
     }
 }

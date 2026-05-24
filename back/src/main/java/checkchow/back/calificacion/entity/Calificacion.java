@@ -6,6 +6,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 
 import checkchow.back.admision.entity.ProcesoAdmision;
@@ -53,9 +54,9 @@ public class Calificacion {
     private Usuario calificadoPor;
 
     @Column(name = "calificado_en", nullable = false)
-    private OffsetDateTime calificadoEn = OffsetDateTime.now();
+    private LocalDateTime calificadoEn = LocalDateTime.now();
 
     @Column(name = "recalculado_en")
-    private OffsetDateTime recalculadoEn;
+    private LocalDateTime recalculadoEn;
 
 }

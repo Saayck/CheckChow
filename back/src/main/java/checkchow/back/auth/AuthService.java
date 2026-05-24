@@ -66,7 +66,7 @@ public class AuthService{
             }
 
             Usuario usuario = usuarioOpt.get();
-            log.info("Usuario encontrado: ID={}, Correo={}, Nombre={}", usuario.getId(), usuario.getEmail(), usuario.getNombre_completo());
+            log.info("Usuario encontrado: ID={}, Correo={}, Nombre={}", usuario.getId(), usuario.getEmail(), usuario.getNombreCompleto());
             log.info("Password hash en BD: '{}'", usuario.getPassword());
 
             boolean passwordMatch = passwordEncoder.matches(loginRequest.getPassword(), usuario.getPassword());
@@ -87,7 +87,7 @@ public class AuthService{
                     "{\"accion\":\"LOGIN_EXITOSO\"}", httpRequest);
             log.info("Login exitoso para usuario: '{}'", loginRequest.getEmail());
 
-            return new AuthResponse("OK", "Login exitoso", token, usuario.getId(), usuario.getNombre_completo());
+            return new AuthResponse("OK", "Login exitoso", token, usuario.getId(), usuario.getNombreCompleto());
 
         } catch (Exception e) {
             log.error("Error durante el login: ", e);

@@ -22,7 +22,7 @@ public class UsuarioService {
     private final PasswordEncoder passwordEncoder;
 
     public Usuario CreateUsuario(Usuario usuario) {
-        usuario.setNombre_completo(formatearNombreCompleto(usuario.getNombre_completo()));
+        usuario.setNombreCompleto(formatearNombreCompleto(usuario.getNombreCompleto()));
 
         usuario.setEmail(usuario.getEmail().toLowerCase());
         usuario.setFechaCreacion(LocalDateTime.now());
@@ -57,7 +57,7 @@ public class UsuarioService {
         Usuario usuarioExistente = usuarioRepo.findById(usuario.getId())
                 .orElseThrow(() -> new RuntimeException("Usuario no encontrado con id: " + usuario.getId()));
 
-        usuarioExistente.setNombre_completo(formatearNombreCompleto(usuario.getNombre_completo()));
+        usuarioExistente.setNombreCompleto(formatearNombreCompleto(usuario.getNombreCompleto()));
 
         usuarioExistente.setEmail(usuario.getEmail().toLowerCase());
         if (usuario.getRol() != null) {
