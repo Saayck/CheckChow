@@ -7,11 +7,12 @@ import java.util.Locale;
 import java.util.Optional;
 
 import org.springframework.data.domain.Sort;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import lombok.RequiredArgsConstructor;
-
 
 @RequiredArgsConstructor
 @Service
@@ -19,6 +20,7 @@ public class UsuarioService {
 
     private final UsuarioRepository usuarioRepo;
     private final PasswordEncoder passwordEncoder;
+
     public Usuario CreateUsuario(Usuario usuario) {
         usuario.setNombre_completo(formatearNombreCompleto(usuario.getNombre_completo()));
 
@@ -36,6 +38,22 @@ public class UsuarioService {
         return usuarioRepo.save(usuario);
 
     }
+
+    public Usuario obtenerUsuarioSesion() {
+
+        Authentication auth = SecurityContextHolder
+                .getContext()
+                .getAuthentication();
+
+        String username = auth.getName();
+
+        return usuarioRepo
+                .findByUsername(
+                        username)
+                .orElseThrow(() -> new RuntimeException(
+                        "Usuario no encontrado"));
+    }
+
     public Usuario modificarUsuario(Usuario usuario) {
         Usuario usuarioExistente = usuarioRepo.findById(usuario.getId())
                 .orElseThrow(() -> new RuntimeException("Usuario no encontrado con id: " + usuario.getId()));

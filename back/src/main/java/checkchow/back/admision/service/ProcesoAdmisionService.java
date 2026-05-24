@@ -7,110 +7,96 @@ import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import checkchow.back.admision.entity.ProcesoAdmision;
 import checkchow.back.admision.repository.ProcesoAdmisionRepository;
+import checkchow.back.user.Usuario;
+import checkchow.back.user.UsuarioService;
 
 @Service
 @RequiredArgsConstructor
 @Transactional
 public class ProcesoAdmisionService {
+        private final UsuarioService usuarioService;
+        private final ProcesoAdmisionRepository procesoRepository;
 
-    private final
-    ProcesoAdmisionRepository
-            procesoRepository;
+        public List<ProcesoAdmision> listar() {
 
-    public List<ProcesoAdmision>
-    listar() {
-
-        return procesoRepository
-                .findAll();
-    }
-
-    public ProcesoAdmision
-    obtener(
-            Integer id) {
-
-        return procesoRepository
-                .findById(id)
-                .orElseThrow(() ->
-                        new RuntimeException(
-                                "Proceso no encontrado"));
-    }
-
-    public ProcesoAdmision
-    crear(
-            ProcesoAdmision proceso) {
-
-        if (procesoRepository
-                .findByCodigo(
-                        proceso.getCodigo())
-                .isPresent()) {
-
-            throw new RuntimeException(
-                    "Código ya registrado");
+                return procesoRepository
+                                .findAll();
         }
 
-        if (procesoRepository
-                .findByAnioAndPeriodo(
-                        proceso.getAnio(),
-                        proceso.getPeriodo())
-                .isPresent()) {
+        public ProcesoAdmision obtener(
+                        Integer id) {
 
-            throw new RuntimeException(
-                    "Proceso ya existe para año y periodo");
+                return procesoRepository
+                                .findById(id)
+                                .orElseThrow(() -> new RuntimeException(
+                                                "Proceso no encontrado"));
         }
 
-        proceso.setFechaCreacion(
-                OffsetDateTime.now());
+        public ProcesoAdmision crear(ProcesoAdmision proceso) {
+                if (procesoRepository.findByCodigo( proceso.getCodigo()).isPresent()) {
+                        throw new RuntimeException("Código ya registrado");
+                }
+                if (procesoRepository.findByAnioAndPeriodo(proceso.getAnio(),proceso.getPeriodo()).isPresent()) {
+                        throw new RuntimeException(
+                        "Proceso ya existe para año y periodo");
+                }
 
-        proceso.setFechaModificacion(
-                OffsetDateTime.now());
+                Usuario usuarioSesion = usuarioService
+                                .obtenerUsuarioSesion();
 
-        return procesoRepository
-                .save(proceso);
-    }
+                proceso.setCreadoPor(
+                                usuarioSesion);
 
-    public ProcesoAdmision
-    actualizar(
-            Integer id,
-            ProcesoAdmision data) {
+                proceso.setFechaCreacion(
+                                OffsetDateTime.now());
 
-        ProcesoAdmision proceso =
-                obtener(id);
+                proceso.setFechaModificacion(
+                                OffsetDateTime.now());
 
-        proceso.setCodigo(
-                data.getCodigo());
+                return procesoRepository
+                                .save(proceso);
+        }
 
-        proceso.setAnio(
-                data.getAnio());
+        public ProcesoAdmision actualizar(
+                        Integer id,
+                        ProcesoAdmision data) {
 
-        proceso.setPeriodo(
-                data.getPeriodo());
+                ProcesoAdmision proceso = obtener(id);
 
-        proceso.setDescription(
-                data.getDescription());
+                proceso.setCodigo(
+                                data.getCodigo());
 
-        proceso.setFechaExamen(
-                data.getFechaExamen());
+                proceso.setAnio(
+                                data.getAnio());
 
-        proceso.setEstado(
-                data.getEstado());
+                proceso.setPeriodo(
+                                data.getPeriodo());
 
-        proceso.setCreadoPor(
-                data.getCreadoPor());
+                proceso.setDescription(
+                                data.getDescription());
 
-        proceso.setFechaModificacion(
-                OffsetDateTime.now());
+                proceso.setFechaExamen(
+                                data.getFechaExamen());
 
-        return procesoRepository
-                .save(proceso);
-    }
+                proceso.setEstado(
+                                data.getEstado());
 
-    public void eliminar(
-            Integer id) {
+                proceso.setCreadoPor(
+                                data.getCreadoPor());
 
-        ProcesoAdmision proceso =
-                obtener(id);
+                proceso.setFechaModificacion(
+                                OffsetDateTime.now());
 
-        procesoRepository
-                .delete(proceso);
-    }
+                return procesoRepository
+                                .save(proceso);
+        }
+
+        public void eliminar(
+                        Integer id) {
+
+                ProcesoAdmision proceso = obtener(id);
+
+                procesoRepository
+                                .delete(proceso);
+        }
 }
