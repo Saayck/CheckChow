@@ -3,6 +3,7 @@ import Header from "../../../components/header";
 import "../../../styles/dashboard.css";
 import { apiRequest } from "../../../utils/api";
 import { writeRowsToXlsx } from "../../../utils/excel";
+import { printHtmlDocument } from "../../../utils/print";
 import { aplicarVacantesPorPuntaje } from "../../../utils/admissionRanking";
 import { getConfig } from "../configuracion_calificacion/configuracion_calificacion";
 import { getPlazas, hasManualPlazas } from "../plazas/plazas";
@@ -348,28 +349,16 @@ export default function GestResultadosAdmision() {
 
 	const handlePrint = () => {
 		if (!resultadosFiltrados.length) return;
-		const printWindow = window.open("", "_blank");
-		if (!printWindow) {
-			window.print();
-			return;
-		}
 		const subtitulo = [
 			getProcesoLabel(),
 			getCarreraLabel(),
 			getCondicionLabel(),
 		].filter(Boolean).join(" | ");
-		printWindow.document.open();
-		printWindow.document.write(buildPrintableReport({
+		printHtmlDocument(buildPrintableReport({
 			titulo: "Resultados de admision",
 			subtitulo,
 			rows: buildExportRows(resultadosFiltrados),
 		}));
-		printWindow.document.close();
-		printWindow.focus();
-		setTimeout(() => {
-			printWindow.print();
-			printWindow.close();
-		}, 250);
 	};
 
 	return (

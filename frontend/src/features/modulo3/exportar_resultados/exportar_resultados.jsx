@@ -1,6 +1,7 @@
 import Header from "../../../components/header";
 import "../../../styles/dashboard.css";
 import { writeRowsToXlsx } from "../../../utils/excel";
+import { printHtmlDocument } from "../../../utils/print";
 import { useMemo, useState } from "react";
 import { getConfig } from "../configuracion_calificacion/configuracion_calificacion";
 import { getOfficialResults } from "../resultados_oficiales/resultados_oficiales";
@@ -461,19 +462,7 @@ export default function ExportarResultados() {
 	const handlePrint = () => {
 		if (!filas.length || !hasSelectedColumns) return;
 		const subtituloReporte = reportSubtitle({ subtitulo, filtroCarrera });
-		const printWindow = window.open("", "_blank");
-		if (!printWindow) {
-			window.print();
-			return;
-		}
-		printWindow.document.open();
-		printWindow.document.write(buildPrintableReport({ titulo, subtitulo: subtituloReporte, filas, columns: selectedColumns, tieneOficial }));
-		printWindow.document.close();
-		printWindow.focus();
-		setTimeout(() => {
-			printWindow.print();
-			printWindow.close();
-		}, 250);
+		printHtmlDocument(buildPrintableReport({ titulo, subtitulo: subtituloReporte, filas, columns: selectedColumns, tieneOficial }));
 	};
 
 	const handleExportExcel = async () => {

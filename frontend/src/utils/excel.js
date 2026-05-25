@@ -40,5 +40,18 @@ export const writeRowsToXlsx = async (rows, columns, sheetName, fileName) => {
 		width: column.width,
 	}));
 
-	await writeExcelFile(rows, { columns: exportColumns, sheet: sheetName }).toFile(fileName);
+	const blob = await writeExcelFile(rows, { columns: exportColumns, sheet: sheetName }).toBlob();
+	const url = URL.createObjectURL(blob);
+	const link = document.createElement("a");
+	link.href = url;
+	link.download = fileName;
+	link.style.display = "none";
+	document.body.appendChild(link);
+	link.click();
+	link.remove();
+
+	window.setTimeout(() => {
+		URL.revokeObjectURL(url);
+		window.focus();
+	}, 0);
 };
