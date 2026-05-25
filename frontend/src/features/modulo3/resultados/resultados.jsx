@@ -3,6 +3,7 @@ import "../../../styles/dashboard.css";
 import { useMemo, useState, useRef, useEffect } from "react";
 import { getConfig } from "../configuracion_calificacion/configuracion_calificacion";
 import { getPlazas, hasManualPlazas } from "../plazas/plazas";
+import { aplicarVacantesPorPuntaje } from "../../../utils/admissionRanking";
 
 const getStored = (key) => {
 	try { return JSON.parse(localStorage.getItem(key) || "[]"); } catch { return []; }
@@ -105,11 +106,12 @@ export default function Resultados() {
 		Object.entries(porCarrera).forEach(([carrera, grupo]) => {
 			grupo.sort((a, b) => b.puntaje - a.puntaje);
 			const n = plazas[carrera] || 0;
-			grupo.forEach((item, idx) => {
-				item.condicionOMR = manualPlazas && n > 0
-					? (idx < n ? "INGRESO" : "NO INGRESO")
-					: (item.condicionOficial || "NO INGRESO");
-			});
+			if (manualPlazas && n > 0) {
+				aplicarVacantesPorPuntaje(grupo, n, true, "puntaje");
+				grupo.forEach((item) => { item.condicionOMR = item.condicion; });
+			} else {
+				grupo.forEach((item) => { item.condicionOMR = item.condicionOficial || "NO INGRESO"; });
+			}
 		});
 
 		items.sort((a, b) => {

@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { getConfig } from "../configuracion_calificacion/configuracion_calificacion";
 import { getOfficialResults } from "../resultados_oficiales/resultados_oficiales";
 import { getPlazas, hasManualPlazas } from "../plazas/plazas";
+import { aplicarVacantesPorPuntaje } from "../../../utils/admissionRanking";
 
 const getStored = (key) => {
 	try { return JSON.parse(localStorage.getItem(key) || "[]"); } catch { return []; }
@@ -27,6 +28,17 @@ const calcularPuntaje = (estudianteAnswers, claveAnswers, config) => {
 const pad4 = (n) => String(n).padStart(4, "0");
 const pad3 = (n) => String(n).padStart(3, "0");
 const formatScore = (value) => Number.isFinite(Number(value)) ? Number(value).toFixed(3) : "";
+const normalizeText = (value) =>
+	String(value || "")
+		.normalize("NFD")
+		.replace(/[\u0300-\u036f]/g, "")
+		.replace(/\s+/g, " ")
+		.trim()
+		.toUpperCase();
+
+const normalizeKey = (value) => String(value || "").replace(/\s+/g, " ").trim();
+const normalizeName = normalizeText;
+const carreraKey = normalizeText;
 
 const escapeHtml = (value) => String(value ?? "")
 	.replace(/&/g, "&amp;")
@@ -45,6 +57,150 @@ const calcularMerito = (filas) => {
 		prevPuntaje = f.puntajeOMR;
 		return { ...f, merito: denseRank };
 	});
+};
+
+const condicionRank = (item) => {
+	const condicion = normalizeText(item?.condicionOficial || item?.condicionOMR || item?.condicion);
+	return condicion === "INGRESO" ? 0 : 1;
+};
+
+const puntajeCeroRank = (item) => {
+	const puntaje = item?.puntajeOMR ?? item?.puntajeOficial;
+	return Number(puntaje || 0) === 0 ? 1 : 0;
+};
+
+const nombrePostulante = (postulant, fallback = "") => {
+	const nombres = normalizeKey(postulant?.names || postulant?.nombres || fallback);
+	const apellidoPat = normalizeKey(postulant?.apellidoPat);
+	const apellidoMat = normalizeKey(postulant?.apellidoMat);
+	const apellidos = [apellidoPat, apellidoMat].filter(Boolean).join(" ");
+	if (!nombres) return apellidos;
+	if (nombres.includes(",") || (apellidos && normalizeName(nombres).includes(normalizeName(apellidos)))) return nombres;
+	return [nombres, apellidoPat, apellidoMat].filter(Boolean).join(" ");
+};
+
+const addOfficialIndex = (index, key, result) => {
+	const normalized = normalizeKey(key);
+	if (normalized) index.set(normalized, result);
+};
+
+const officialIdentity = (result) =>
+	normalizeKey(result?.dni || result?.codigo || result?.litho || normalizeName(result?.nombre));
+
+const getPlazasCarrera = (plazas, carrera) => {
+	const direct = Number(plazas[carrera] || 0);
+	if (direct > 0) return direct;
+	const selectedKey = carreraKey(carrera);
+	const match = Object.entries(plazas).find(([key]) => carreraKey(key) === selectedKey);
+	return match ? Number(match[1] || 0) : 0;
+};
+
+const reportSubtitle = ({ subtitulo, filtroCarrera }) => {
+	const parts = [];
+	if (subtitulo) parts.push(subtitulo);
+	if (filtroCarrera !== "__TODAS__") parts.push(filtroCarrera);
+	return parts.join(" | ");
+};
+
+const filenameForCareer = (career) => {
+	if (career === "__TODAS__") return "resultados.xlsx";
+	const safeCareer = normalizeText(career).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+	return `resultados-${safeCareer || "carrera"}.xlsx`;
+};
+
+const uniqueCarreras = (items) => {
+	const map = new Map();
+	items.forEach((item) => {
+		const carrera = normalizeKey(item.carreraOficial);
+		const key = carreraKey(carrera);
+		if (key && !map.has(key)) map.set(key, carrera);
+	});
+	return [...map.values()].sort((a, b) => a.localeCompare(b));
+};
+
+const BASE_EXPORT_COLUMNS = [
+	{
+		key: "SEC",
+		header: "SEC",
+		width: 7,
+		align: "center",
+		getValue: (f) => f.sec,
+	},
+	{
+		key: "CODIGO",
+		header: "CODIGO",
+		width: 12,
+		align: "center",
+		getValue: (f) => f.dni || "-",
+	},
+	{
+		key: "NOMBRE",
+		header: "NOMBRE",
+		width: 38,
+		getValue: (f) => f.nombre,
+	},
+	{
+		key: "CARRERA",
+		header: "CARRERA",
+		width: 30,
+		getValue: (f) => f.carreraOficial || "-",
+	},
+	{
+		key: "PUNTAJE OMR",
+		header: "PUNTAJE OMR",
+		width: 12,
+		align: "right",
+		monospace: true,
+		getValue: (f) => formatScore(f.puntajeOMR),
+	},
+	{
+		key: "MERITO",
+		header: "MERITO",
+		width: 8,
+		align: "center",
+		monospace: true,
+		getValue: (f, ctx) => (ctx.tieneOficial && f.enPDF && f.meritoOficial) ? f.meritoOficial : f.merito,
+	},
+	{
+		key: "PUNTAJE OFICIAL",
+		header: "PUNTAJE OFICIAL",
+		width: 14,
+		align: "right",
+		monospace: true,
+		requiresOfficial: true,
+		getValue: (f) => f.enPDF ? formatScore(f.puntajeOficial) : "No en PDF",
+	},
+	{
+		key: "CONDICION PDF",
+		header: "CONDICION PDF",
+		width: 12,
+		align: "center",
+		requiresOfficial: true,
+		getValue: (f) => !f.enPDF ? "No encontrado" : f.condicionOficial || "-",
+	},
+	{
+		key: "CONDICION OMR",
+		header: "CONDICION OMR",
+		width: 12,
+		align: "center",
+		requiresPlazas: true,
+		getValue: (f) => f.condicionOMR || "Sin plazas",
+	},
+];
+
+const DEFAULT_SELECTED_COLUMNS = BASE_EXPORT_COLUMNS.map((column) => column.key);
+
+const getAvailableColumns = ({ tieneOficial, tienePlazas }) => BASE_EXPORT_COLUMNS.filter((column) => {
+	if (column.requiresOfficial && !tieneOficial) return false;
+	if (column.requiresPlazas && !tienePlazas) return false;
+	return true;
+});
+
+const getSelectedColumns = ({ selectedColumnKeys, tieneOficial, tienePlazas }) => {
+	const selected = new Set(selectedColumnKeys);
+	const columns = getAvailableColumns({ tieneOficial, tienePlazas })
+		.filter((column) => selected.has(column.key));
+	return columns.length ? columns : getAvailableColumns({ tieneOficial, tienePlazas }).slice(0, 1);
 };
 
 const PRINT_CSS = `
@@ -75,33 +231,9 @@ const PRINT_CSS = `
 }
 `;
 
-const buildPrintableReport = ({ titulo, subtitulo, filas, tieneOficial, tienePlazas }) => {
-	const headers = [
-		"SEC",
-		"CODIGO",
-		"NOMBRE",
-		"CARRERA",
-		"PUNTAJE OMR",
-		"MERITO",
-		...(tieneOficial ? ["PUNTAJE OFICIAL", "CONDICION PDF"] : []),
-		...(tienePlazas ? ["CONDICION OMR"] : []),
-	];
-
+const buildPrintableReport = ({ titulo, subtitulo, filas, columns, tieneOficial }) => {
 	const bodyRows = filas.map((f) => {
-		const cells = [
-			f.sec,
-			f.dni || "-",
-			f.nombre,
-			f.carreraOficial || "-",
-			formatScore(f.puntajeOMR),
-			(tieneOficial && f.enPDF && f.meritoOficial) ? f.meritoOficial : f.merito,
-			...(tieneOficial ? [
-				f.enPDF ? formatScore(f.puntajeOficial) : "No en PDF",
-				!f.enPDF ? "No encontrado" : f.condicionOficial || "-",
-			] : []),
-			...(tienePlazas ? [f.condicionOMR || "Sin plazas"] : []),
-		];
-		return `<tr>${cells.map((cell) => `<td>${escapeHtml(cell)}</td>`).join("")}</tr>`;
+		return `<tr>${columns.map((column) => `<td class="align-${column.align || "left"} ${column.monospace ? "mono" : ""}">${escapeHtml(column.getValue(f, { tieneOficial }))}</td>`).join("")}</tr>`;
 	}).join("");
 
 	return `<!doctype html>
@@ -151,8 +283,9 @@ const buildPrintableReport = ({ titulo, subtitulo, filas, tieneOficial, tienePla
 			-webkit-print-color-adjust: exact;
 			print-color-adjust: exact;
 		}
-		td:nth-child(1), td:nth-child(2), td:nth-child(6), td:nth-child(8) { text-align: center; }
-		td:nth-child(5), td:nth-child(7) { text-align: right; font-family: Consolas, monospace; }
+		.align-center { text-align: center; }
+		.align-right { text-align: right; }
+		.mono { font-family: Consolas, monospace; }
 		tbody tr:nth-child(even) td {
 			background: #f2f2f2;
 			-webkit-print-color-adjust: exact;
@@ -167,7 +300,7 @@ const buildPrintableReport = ({ titulo, subtitulo, filas, tieneOficial, tienePla
 	<h1>${escapeHtml(titulo || "RESULTADOS DE EXAMEN DE ADMISION")}</h1>
 	${subtitulo ? `<div class="subtitle">${escapeHtml(subtitulo)}</div>` : ""}
 	<table>
-		<thead><tr>${headers.map((header) => `<th>${escapeHtml(header)}</th>`).join("")}</tr></thead>
+		<thead><tr>${columns.map((column) => `<th>${escapeHtml(column.header)}</th>`).join("")}</tr></thead>
 		<tbody>${bodyRows}</tbody>
 	</table>
 </body>
@@ -179,21 +312,25 @@ export default function ExportarResultados() {
 	const [titulo, setTitulo] = useState("RESULTADOS DE EXAMEN DE ADMISIÓN");
 	const [subtitulo, setSubtitulo] = useState("");
 	const [filtroCarrera, setFiltroCarrera] = useState("__TODAS__");
+	const [selectedColumnKeys, setSelectedColumnKeys] = useState(DEFAULT_SELECTED_COLUMNS);
 
 	const oficiales = useMemo(() => {
-		const raw = getOfficialResults();
 		const index = new Map();
-		raw.forEach((r) => {
-			if (r.dni) index.set(String(r.dni).trim(), r);
+		getOfficialResults().forEach((r) => {
+			addOfficialIndex(index, r.dni, r);
+			addOfficialIndex(index, r.codigo, r);
+			addOfficialIndex(index, r.litho, r);
+			if (r.nombre) addOfficialIndex(index, normalizeName(r.nombre), r);
 		});
 		return index;
 	}, []);
+
+	const oficialesRaw = useMemo(() => getOfficialResults(), []);
 
 	const { filas, carreras, tienePlazas } = useMemo(() => {
 		const postulants = getStored("postulantsData");
 		const estudiantes = getStored("studentResponsesData");
 		const claves = getStored("responsesData");
-		if (!claves.length || !estudiantes.length) return { filas: [], carreras: [], tienePlazas: false };
 
 		const claveIndex = new Map();
 		claves.forEach((c) => claveIndex.set(String(c.tema).trim().toUpperCase(), c.answers));
@@ -201,27 +338,49 @@ export default function ExportarResultados() {
 		const postulantIndex = new Map();
 		postulants.forEach((p) => postulantIndex.set(p.id, p));
 
+		const officialUsed = new Set();
 		const items = estudiantes.map((est) => {
-			const tema = String(est.tema).trim().toUpperCase();
+			const tema = normalizeText(est.tema);
 			const clave = claveIndex.get(tema);
 			if (!clave) return null;
-			const postulant = postulantIndex.get(est.postulantId);
+			const postulant = postulantIndex.get(est.postulantId) || {};
 			const dni = postulant?.dni || "";
 			const puntajeOMR = calcularPuntaje(est.answers, clave, config);
 			const oficial = oficiales.get(String(est.litho || "").trim())
 				|| oficiales.get(String(postulant?.litho || "").trim())
-				|| oficiales.get(String(dni).trim());
+				|| oficiales.get(String(dni).trim())
+				|| oficiales.get(normalizeName(est.postulantName || nombrePostulante(postulant)));
+			if (oficial) officialUsed.add(officialIdentity(oficial));
+			const carrera = oficial?.carrera || postulant?.carrera || postulant?.carreraNombre || "";
 			return {
-				nombre: est.postulantName,
+				nombre: est.postulantName || nombrePostulante(postulant),
 				dni,
-				puntajeOMR,
+				puntajeOMR: oficial?.puntaje ?? puntajeOMR,
 				enPDF: !!oficial,
-				carreraOficial: oficial?.carrera || postulant?.carrera || "",
+				carreraOficial: carrera,
 				condicionOficial: oficial?.condicion || "",
 				puntajeOficial: oficial?.puntaje ?? null,
 				meritoOficial: oficial?.merito || "",
 			};
 		}).filter(Boolean);
+
+		oficialesRaw.forEach((oficial) => {
+			const identity = officialIdentity(oficial);
+			if (identity && officialUsed.has(identity)) return;
+			items.push({
+				nombre: oficial.nombre || "",
+				dni: oficial.dni || oficial.codigo || "",
+				puntajeOMR: oficial.puntaje ?? null,
+				enPDF: true,
+				carreraOficial: oficial.carrera || "",
+				condicionOficial: oficial.condicion || "",
+				puntajeOficial: oficial.puntaje ?? null,
+				meritoOficial: oficial.merito || "",
+			});
+			if (identity) officialUsed.add(identity);
+		});
+
+		if (!items.length) return { filas: [], carreras: [], tienePlazas: false };
 
 		// Condición OMR: top N por carrera según plazas (se calcula ANTES de filtrar)
 		const plazas = getPlazas();
@@ -229,34 +388,36 @@ export default function ExportarResultados() {
 		const _tienePlazas = manualPlazas && Object.values(plazas).some((v) => v > 0);
 		const porCarreraPlaza = {};
 		items.forEach((item) => {
-			const c = item.carreraOficial || "";
+			const c = carreraKey(item.carreraOficial || "");
 			if (!porCarreraPlaza[c]) porCarreraPlaza[c] = [];
 			porCarreraPlaza[c].push(item);
 		});
-		Object.entries(porCarreraPlaza).forEach(([carrera, grupo]) => {
-			grupo.sort((a, b) => b.puntajeOMR - a.puntajeOMR);
-			const n = plazas[carrera] || 0;
-			grupo.forEach((item, idx) => {
-				item.condicionOMR = manualPlazas && n > 0
-					? (idx < n ? "INGRESO" : "NO INGRESO")
-					: (item.condicionOficial || "NO INGRESO");
-			});
+		Object.values(porCarreraPlaza).forEach((grupo) => {
+			const n = getPlazasCarrera(plazas, grupo[0]?.carreraOficial || "");
+			if (manualPlazas && n > 0) {
+				aplicarVacantesPorPuntaje(grupo, n, true, "puntajeOMR");
+				grupo.forEach((item) => { item.condicionOMR = item.condicion; });
+			} else {
+				grupo.forEach((item) => { item.condicionOMR = item.condicionOficial || "NO INGRESO"; });
+			}
 		});
 
 		// Carreras únicas (de PDF oficial o del postulante)
-		const carrerasSet = [...new Set(
-			items.map((i) => i.carreraOficial).filter(Boolean)
-		)].sort();
+		const carrerasSet = uniqueCarreras(items);
 
 		const filtrados = filtroCarrera === "__TODAS__"
 			? items
-			: items.filter((i) => i.carreraOficial === filtroCarrera);
+			: items.filter((i) => carreraKey(i.carreraOficial) === carreraKey(filtroCarrera));
 
 		filtrados.sort((a, b) => {
+			const ceroDiff = puntajeCeroRank(a) - puntajeCeroRank(b);
+			if (ceroDiff !== 0) return ceroDiff;
+			const condicionDiff = condicionRank(a) - condicionRank(b);
+			if (condicionDiff !== 0) return condicionDiff;
 			const meritoA = Number(a.meritoOficial);
 			const meritoB = Number(b.meritoOficial);
 			if (Number.isFinite(meritoA) && Number.isFinite(meritoB)) return meritoA - meritoB;
-			return b.puntajeOMR - a.puntajeOMR;
+			return Number(b.puntajeOMR || 0) - Number(a.puntajeOMR || 0);
 		});
 		const conMerito = calcularMerito(filtrados);
 
@@ -269,19 +430,44 @@ export default function ExportarResultados() {
 				...item,
 			})),
 		};
-	}, [config, oficiales, filtroCarrera]);
+	}, [config, oficiales, oficialesRaw, filtroCarrera]);
 
 	const tieneOficial = oficiales.size > 0;
+	const availableColumns = useMemo(
+		() => getAvailableColumns({ tieneOficial, tienePlazas }),
+		[tieneOficial, tienePlazas]
+	);
+	const selectedColumns = useMemo(
+		() => getSelectedColumns({ selectedColumnKeys, tieneOficial, tienePlazas }),
+		[selectedColumnKeys, tieneOficial, tienePlazas]
+	);
+	const selectedColumnKeySet = useMemo(() => new Set(selectedColumns.map((column) => column.key)), [selectedColumns]);
+	const hasSelectedColumns = selectedColumns.length > 0;
+
+	const toggleColumn = (key) => {
+		setSelectedColumnKeys((prev) => {
+			const activeAvailable = availableColumns.filter((column) => prev.includes(column.key));
+			if (prev.includes(key) && activeAvailable.length <= 1) return prev;
+			return prev.includes(key)
+				? prev.filter((columnKey) => columnKey !== key)
+				: [...prev, key];
+		});
+	};
+
+	const selectAllColumns = () => {
+		setSelectedColumnKeys((prev) => [...new Set([...prev, ...availableColumns.map((column) => column.key)])]);
+	};
 
 	const handlePrint = () => {
-		if (!filas.length) return;
+		if (!filas.length || !hasSelectedColumns) return;
+		const subtituloReporte = reportSubtitle({ subtitulo, filtroCarrera });
 		const printWindow = window.open("", "_blank");
 		if (!printWindow) {
 			window.print();
 			return;
 		}
 		printWindow.document.open();
-		printWindow.document.write(buildPrintableReport({ titulo, subtitulo, filas, tieneOficial, tienePlazas }));
+		printWindow.document.write(buildPrintableReport({ titulo, subtitulo: subtituloReporte, filas, columns: selectedColumns, tieneOficial }));
 		printWindow.document.close();
 		printWindow.focus();
 		setTimeout(() => {
@@ -291,46 +477,26 @@ export default function ExportarResultados() {
 	};
 
 	const handleExportExcel = async () => {
-		if (!filas.length) return;
+		if (!filas.length || !hasSelectedColumns) return;
+		const subtituloReporte = reportSubtitle({ subtitulo, filtroCarrera });
 		const dataRows = filas.map((f) => {
-			const row = {
-				SEC: f.sec,
-				CODIGO: f.dni,
-				NOMBRE: f.nombre,
-				CARRERA: f.carreraOficial || "",
-				"PUNTAJE OMR": formatScore(f.puntajeOMR),
-				MERITO: (tieneOficial && f.enPDF && f.meritoOficial) ? f.meritoOficial : f.merito,
-			};
-			if (tieneOficial) {
-				row["PUNTAJE OFICIAL"] = f.enPDF ? formatScore(f.puntajeOficial) : "";
-				row["CONDICION PDF"] = f.condicionOficial || (f.enPDF ? "—" : "No en PDF");
-			}
-			if (tienePlazas) {
-				row["CONDICION OMR"] = f.condicionOMR || "Sin plazas";
-			}
+			const row = {};
+			selectedColumns.forEach((column) => {
+				row[column.key] = column.getValue(f, { tieneOficial });
+			});
 			return row;
 		});
 		const data = [
-			{ SEC: titulo },
-			...(subtitulo ? [{ SEC: subtitulo }] : []),
+			{ [selectedColumns[0].key]: titulo },
+			...(subtituloReporte ? [{ [selectedColumns[0].key]: subtituloReporte }] : []),
 			{},
 			...dataRows,
 		];
 		await writeRowsToXlsx(
 			data,
-			[
-				{ header: "SEC", key: "SEC", width: 7 },
-				{ header: "CODIGO", key: "CODIGO", width: 12 },
-				{ header: "NOMBRE", key: "NOMBRE", width: 38 },
-				{ header: "CARRERA", key: "CARRERA", width: 30 },
-				{ header: "PUNTAJE OMR", key: "PUNTAJE OMR", width: 12 },
-				{ header: "MERITO", key: "MERITO", width: 8 },
-				{ header: "PUNTAJE OFICIAL", key: "PUNTAJE OFICIAL", width: 14 },
-				{ header: "CONDICION PDF", key: "CONDICION PDF", width: 12 },
-				{ header: "CONDICION OMR", key: "CONDICION OMR", width: 12 },
-			],
+			selectedColumns.map(({ header, key, width }) => ({ header, key, width })),
 			"Resultados",
-			"resultados.xlsx"
+			filenameForCareer(filtroCarrera)
 		);
 	};
 
@@ -389,11 +555,46 @@ export default function ExportarResultados() {
 							</div>
 						</div>
 
+						<div className="glass-card p-4 mb-4">
+							<div className="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+								<p className="section-kicker mb-0">Columnas para exportar</p>
+								<button type="button" className="btn btn-sm btn-outline-light" onClick={selectAllColumns}>
+									<i className="bi bi-check2-square me-2"></i>Seleccionar todas
+								</button>
+							</div>
+							<div className="row g-2">
+								{availableColumns.map((column) => {
+									const checked = selectedColumnKeySet.has(column.key);
+									return (
+										<div className="col-12 col-sm-6 col-lg-4" key={column.key}>
+											<label
+												className="d-flex align-items-center gap-2 px-3 py-2 rounded-2"
+												style={{
+													border: "1px solid rgba(148,163,184,0.2)",
+													background: checked ? "rgba(34,197,94,0.12)" : "rgba(255,255,255,0.03)",
+													color: "#e2e8f0",
+													cursor: "pointer",
+												}}
+											>
+												<input
+													className="form-check-input m-0"
+													type="checkbox"
+													checked={checked}
+													onChange={() => toggleColumn(column.key)}
+												/>
+												<span style={{ fontWeight: 600 }}>{column.header}</span>
+											</label>
+										</div>
+									);
+								})}
+							</div>
+						</div>
+
 						<div className="d-flex flex-wrap gap-2 mb-4">
-							<button className="btn action-button action-button-primary action-button-success" onClick={handlePrint} disabled={!filas.length}>
+							<button className="btn action-button action-button-primary action-button-success" onClick={handlePrint} disabled={!filas.length || !hasSelectedColumns}>
 								<i className="bi bi-printer me-2"></i>Guardar PDF
 							</button>
-							<button className="btn action-button action-button-secondary" onClick={handleExportExcel} disabled={!filas.length}>
+							<button className="btn action-button action-button-secondary" onClick={handleExportExcel} disabled={!filas.length || !hasSelectedColumns}>
 								<i className="bi bi-file-earmark-excel me-2"></i>Exportar Excel
 							</button>
 							{!tieneOficial && (
@@ -442,7 +643,7 @@ export default function ExportarResultados() {
 													{f.carreraOficial || <span style={{ color: "#475569" }}>—</span>}
 												</td>
 												<td style={{ textAlign: "right", fontFamily: "monospace" }}>
-													{f.puntajeOMR.toFixed(3)}
+													{formatScore(f.puntajeOMR) || <span style={{ color: "#475569" }}>—</span>}
 												</td>
 												<td style={{ textAlign: "center", fontFamily: "monospace" }}>
 														{(tieneOficial && f.enPDF && f.meritoOficial) ? f.meritoOficial : f.merito}

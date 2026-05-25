@@ -57,6 +57,16 @@ const buildRespuestaPayload = (item) => {
 	};
 };
 
+const buildIdentificacionPayload = (item) => ({
+	lithocode: toText(item.litho),
+	codigoTema: toText(item.tema).toUpperCase(),
+	codigo: toText(item.dni),
+	sinCodigo: !toText(item.dni),
+	sinTema: !toText(item.tema),
+	lecturaDudosa: false,
+	observacion: "Sincronizado desde postulantes importados",
+});
+
 export default function Omr() {
 	const [lithocode, setLithocode] = useState("");
 	const [union, setUnion] = useState(null);
@@ -65,6 +75,7 @@ export default function Omr() {
 	const [procesos, setProcesos] = useState([]);
 	const [procesoId, setProcesoId] = useState("");
 	const [importing, setImporting] = useState(false);
+	const [postulantesLocalCount, setPostulantesLocalCount] = useState(() => getStoredJson("postulantsData", []).length);
 	const [respuestasLocalCount, setRespuestasLocalCount] = useState(() => getStoredJson("studentResponsesData", []).length);
 
 	useEffect(() => {
@@ -193,6 +204,82 @@ export default function Omr() {
 		}
 	};
 
+	const syncPostulantesImportados = async () => {
+		setImporting(true);
+		setMessage("");
+		try {
+			const stored = getStoredJson("postulantsData", []);
+			setPostulantesLocalCount(stored.length);
+			const payload = stored
+				.map(buildIdentificacionPayload)
+				.filter((row) => row.lithocode);
+
+			if (payload.length === 0) {
+				setMessage("No hay postulantes con litocodigo para sincronizar. Primero carga postulantes en el modulo de postulantes.");
+				return null;
+			}
+
+			const query = procesoId ? `?procesoId=${encodeURIComponent(procesoId)}` : "";
+			const result = await apiRequest(`/api/omr/identificaciones/import${query}`, {
+				method: "POST",
+				body: JSON.stringify(payload),
+			});
+			setMessage(`Postulantes sincronizados como identificaciones OMR: ${result.guardados} nuevas, ${result.actualizados} actualizadas, ${result.omitidos} omitidas.`);
+			return result;
+		} catch (err) {
+			setMessage(err.message || "No se pudo sincronizar los postulantes ya importados.");
+			return null;
+		} finally {
+			setImporting(false);
+		}
+	};
+
+	const syncDatosImportados = async () => {
+		setImporting(true);
+		setMessage("");
+		try {
+			const postulantes = getStoredJson("postulantsData", []);
+			const respuestas = getStoredJson("studentResponsesData", []);
+			setPostulantesLocalCount(postulantes.length);
+			setRespuestasLocalCount(respuestas.length);
+
+			const identificacionesPayload = postulantes
+				.map(buildIdentificacionPayload)
+				.filter((row) => row.lithocode);
+			const respuestasPayload = respuestas
+				.map(buildRespuestaPayload)
+				.filter((row) => row.lithocode && Object.keys(row.respuestas).length > 0);
+
+			if (identificacionesPayload.length === 0 && respuestasPayload.length === 0) {
+				setMessage("No hay datos importados para sincronizar. Primero carga postulantes y respuestas.");
+				return;
+			}
+
+			const query = procesoId ? `?procesoId=${encodeURIComponent(procesoId)}` : "";
+			const results = [];
+			if (identificacionesPayload.length > 0) {
+				const result = await apiRequest(`/api/omr/identificaciones/import${query}`, {
+					method: "POST",
+					body: JSON.stringify(identificacionesPayload),
+				});
+				results.push(`identificaciones: ${result.guardados} nuevas, ${result.actualizados} actualizadas, ${result.omitidos} omitidas`);
+			}
+			if (respuestasPayload.length > 0) {
+				const result = await apiRequest(`/api/omr/respuestas/import${query}`, {
+					method: "POST",
+					body: JSON.stringify(respuestasPayload),
+				});
+				results.push(`respuestas: ${result.guardados} nuevas, ${result.actualizados} actualizadas, ${result.omitidos} omitidas`);
+			}
+
+			setMessage(`Datos sincronizados por litocodigo desde los modulos ya cargados: ${results.join(" | ")}.`);
+		} catch (err) {
+			setMessage(err.message || "No se pudo sincronizar los datos ya importados.");
+		} finally {
+			setImporting(false);
+		}
+	};
+
 	const fields = union ? Object.entries(union) : [];
 
 	return (
@@ -202,7 +289,7 @@ export default function Omr() {
 				<div className="page-title mb-4">
 					<span className="eyebrow">Modulo 2</span>
 					<h1 className="display-6 fw-bold mb-2">Union OMR</h1>
-					<p className="text-light-emphasis mb-0">Importa identifi.xls y une por LITHO. Si las respuestas ya fueron cargadas, sincronízalas desde el módulo de respuestas.</p>
+					<p className="text-light-emphasis mb-0">Une por litocodigo usando los postulantes y respuestas ya cargados en el modulo 2.</p>
 				</div>
 
 				<div className="row g-4">
@@ -232,13 +319,19 @@ export default function Omr() {
 									</button>
 								</div>
 								<div className="d-grid gap-2">
-									<label className="btn btn-outline-light btn-sm" style={{ cursor: "pointer" }}>
-										Importar identifi.xls
-										<input type="file" accept=".xls,.xlsx" onChange={(event) => importIdentificaciones(event.target.files?.[0])} style={{ display: "none" }} disabled={importing} />
-									</label>
+									<button type="button" className="btn btn-success btn-sm" onClick={syncDatosImportados} disabled={importing}>
+										Sincronizar datos ya importados ({postulantesLocalCount} postulantes / {respuestasLocalCount} respuestas)
+									</button>
+									<button type="button" className="btn btn-outline-light btn-sm" onClick={syncPostulantesImportados} disabled={importing}>
+										Sincronizar postulantes ya importados ({postulantesLocalCount})
+									</button>
 									<button type="button" className="btn btn-outline-light btn-sm" onClick={syncRespuestasImportadas} disabled={importing}>
 										Sincronizar respuestas ya importadas ({respuestasLocalCount})
 									</button>
+									<label className="btn btn-outline-light btn-sm" style={{ cursor: "pointer" }}>
+										Importar identifi.xls manualmente
+										<input type="file" accept=".xls,.xlsx" onChange={(event) => importIdentificaciones(event.target.files?.[0])} style={{ display: "none" }} disabled={importing} />
+									</label>
 									<label className="btn btn-outline-light btn-sm" style={{ cursor: "pointer" }}>
 										Importar respuest.xls manualmente
 										<input type="file" accept=".xls,.xlsx" onChange={(event) => importRespuestas(event.target.files?.[0])} style={{ display: "none" }} disabled={importing} />

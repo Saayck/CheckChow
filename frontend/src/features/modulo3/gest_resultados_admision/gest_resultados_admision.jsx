@@ -3,6 +3,7 @@ import Header from "../../../components/header";
 import "../../../styles/dashboard.css";
 import { apiRequest } from "../../../utils/api";
 import { writeRowsToXlsx } from "../../../utils/excel";
+import { aplicarVacantesPorPuntaje } from "../../../utils/admissionRanking";
 import { getConfig } from "../configuracion_calificacion/configuracion_calificacion";
 import { getPlazas, hasManualPlazas } from "../plazas/plazas";
 
@@ -17,8 +18,17 @@ const condicionStyle = (condicion) => {
 	}
 };
 
-const nombreCompleto = (p) =>
-	[p?.nombres, p?.apellidoPat, p?.apellidoMat].filter(Boolean).join(" ");
+const nombreCompleto = (p) => {
+	const nombres = String(p?.nombres || "").replace(/\s+/g, " ").trim();
+	const apellidoPat = String(p?.apellidoPat || "").replace(/\s+/g, " ").trim();
+	const apellidoMat = String(p?.apellidoMat || "").replace(/\s+/g, " ").trim();
+	const apellidos = [apellidoPat, apellidoMat].filter(Boolean).join(" ");
+	if (!nombres) return apellidos;
+	const nombresNorm = normalizeName(nombres);
+	const apellidosNorm = normalizeName(apellidos);
+	if (nombres.includes(",") || (apellidosNorm && nombresNorm.includes(apellidosNorm))) return nombres;
+	return [nombres, apellidoPat, apellidoMat].filter(Boolean).join(" ");
+};
 
 const normalizeName = (value) =>
 	String(value || "")
@@ -219,13 +229,9 @@ export default function GestResultadosAdmision() {
 			porCarrera[carrera].push(item);
 		});
 		Object.entries(porCarrera).forEach(([carrera, grupo]) => {
-			grupo.sort((a, b) => b.puntajeFinal - a.puntajeFinal);
 			const vacantes = plazas[carrera] || 0;
-			grupo.forEach((item, idx) => {
-				item.condicion = manualPlazas && vacantes > 0
-					? (idx < vacantes ? "INGRESO" : "NO INGRESO")
-					: (item.condicion || "NO INGRESO");
-			});
+			if (manualPlazas && vacantes > 0) aplicarVacantesPorPuntaje(grupo, vacantes, true, "puntajeFinal");
+			else grupo.forEach((item) => { item.condicion = item.condicion || "NO INGRESO"; });
 		});
 
 		return base
@@ -234,20 +240,22 @@ export default function GestResultadosAdmision() {
 	}, [resultados, procesos]);
 
 	const resultadosMostrados = useMemo(() => {
-		if (resultados.length === 0) return resultadosLocales;
-		if (hasManualPlazas()) return resultados;
+		const baseResultados = resultados.length === 0 ? resultadosLocales : resultados;
 
 		const oficialIndex = new Map();
 		getStored("officialResultsData").forEach((r) => {
 			if (r.dni) oficialIndex.set(String(r.dni).trim(), r);
 			if (r.nombre) oficialIndex.set(normalizeName(r.nombre), r);
 		});
+		if (!oficialIndex.size) return baseResultados;
 
-		return resultados.map((r) => {
+		return baseResultados.map((r) => {
 			const postulante = r.inscripcion?.postulante || {};
 			const oficial = oficialIndex.get(String(postulante.dni || "").trim())
 				|| oficialIndex.get(normalizeName(nombreCompleto(postulante)));
-			return oficial?.condicion ? { ...r, condicion: oficial.condicion } : r;
+			return oficial?.condicion
+				? { ...r, condicion: oficial.condicion, vacanteAmpliada: oficial.condicion === "INGRESO" ? r.vacanteAmpliada : false }
+				: r;
 		});
 	}, [resultados, resultadosLocales]);
 

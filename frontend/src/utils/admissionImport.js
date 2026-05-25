@@ -140,7 +140,7 @@ export const upsertOfficialImport = async ({ resultados, metadata, procesoId, se
 		}
 
 		const vacantesCalculadas = grupo.vacantesPdf === null || grupo.vacantesPdf === undefined
-			? 0
+			? grupo.ingreso
 			: Number(grupo.vacantesPdf);
 		if (vacantesCalculadas > 0) {
 			const existente = vacanteByCarrera.get(String(carrera.id));
