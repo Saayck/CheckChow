@@ -173,17 +173,35 @@ export default function GestVacantes() {
 								Asigna el número de vacantes por carrera y proceso de admisión.
 							</p>
 						</div>
-						<button
-							className="btn btn-glass"
-							onClick={openNew}
-							disabled={procesos.length === 0 || carreras.length === 0}
-						>
-							<i className="bi bi-plus-lg me-1"></i>Nueva vacante
-						</button>
-						<label className={`btn btn-glass ms-2 ${!procesoImportacion || importing ? "disabled" : ""}`} style={{ cursor: procesoImportacion && !importing ? "pointer" : "default" }}>
-							<i className="bi bi-file-earmark-excel me-1"></i>{importing ? "Importando..." : "Importar Excel"}
-							<input type="file" accept=".xlsx" disabled={!procesoImportacion || importing} onChange={(e) => handleExcelImport(e.target.files?.[0])} style={{ display: "none" }} />
-						</label>
+						<div className="d-flex flex-wrap gap-2">
+							<button
+								className="dashboard-create-btn"
+								onClick={openNew}
+								disabled={procesos.length === 0 || carreras.length === 0}
+							>
+								<span className="dashboard-create-btn__icon">
+									<i className="bi bi-plus-lg"></i>
+								</span>
+								<span className="dashboard-create-btn__text">
+									<span className="dashboard-create-btn__label">Nueva vacante</span>
+									<span className="dashboard-create-btn__hint">Asignar cupos</span>
+								</span>
+							</button>
+							<label
+								className={`dashboard-create-btn ${!procesoImportacion || importing ? "is-disabled" : ""}`}
+								style={{ cursor: procesoImportacion && !importing ? "pointer" : "default" }}
+								aria-disabled={!procesoImportacion || importing}
+							>
+								<span className="dashboard-create-btn__icon">
+									<i className="bi bi-file-earmark-excel"></i>
+								</span>
+								<span className="dashboard-create-btn__text">
+									<span className="dashboard-create-btn__label">{importing ? "Importando..." : "Importar Excel"}</span>
+									<span className="dashboard-create-btn__hint">Carga masiva</span>
+								</span>
+								<input type="file" accept=".xlsx" disabled={!procesoImportacion || importing} onChange={(e) => handleExcelImport(e.target.files?.[0])} style={{ display: "none" }} />
+							</label>
+						</div>
 					</div>
 
 					<div className="row g-3 mb-4">

@@ -142,8 +142,14 @@ export default function GestProcesos() {
 								Gestiona los procesos de admisión. Cada proceso agrupa temas, claves de respuesta, inscripciones y vacantes.
 							</p>
 						</div>
-						<button className="btn btn-glass" onClick={openNew}>
-							<i className="bi bi-plus-lg me-1"></i>Nuevo proceso
+						<button className="dashboard-create-btn" onClick={openNew}>
+							<span className="dashboard-create-btn__icon">
+								<i className="bi bi-plus-lg"></i>
+							</span>
+							<span className="dashboard-create-btn__text">
+								<span className="dashboard-create-btn__label">Nuevo proceso</span>
+								<span className="dashboard-create-btn__hint">Crear admisión</span>
+							</span>
 						</button>
 					</div>
 

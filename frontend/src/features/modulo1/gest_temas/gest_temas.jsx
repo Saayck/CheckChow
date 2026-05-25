@@ -142,12 +142,18 @@ export default function GestTemas() {
 							</p>
 						</div>
 						<button
-							className="btn btn-glass"
+							className="dashboard-create-btn"
 							onClick={openNew}
 							disabled={procesos.length === 0}
 							title={procesos.length === 0 ? "Crea primero un proceso de admisión" : ""}
 						>
-							<i className="bi bi-plus-lg me-1"></i>Nuevo tema
+							<span className="dashboard-create-btn__icon">
+								<i className="bi bi-plus-lg"></i>
+							</span>
+							<span className="dashboard-create-btn__text">
+								<span className="dashboard-create-btn__label">Nuevo tema</span>
+								<span className="dashboard-create-btn__hint">Crear examen</span>
+							</span>
 						</button>
 					</div>
 

@@ -75,8 +75,14 @@ export default function Auditoria() {
 						<h1 className="display-6 fw-bold mb-2">Auditoría</h1>
 						<p className="text-light-emphasis mb-0">Seguimiento real de acciones críticas, sesiones y trazabilidad operativa.</p>
 					</div>
-					<button className="btn btn-glass" onClick={loadData} disabled={loading}>
-						<i className="bi bi-arrow-clockwise"></i> Actualizar
+					<button className="dashboard-create-btn" onClick={loadData} disabled={loading}>
+						<span className="dashboard-create-btn__icon">
+							<i className="bi bi-arrow-clockwise"></i>
+						</span>
+						<span className="dashboard-create-btn__text">
+							<span className="dashboard-create-btn__label">Actualizar</span>
+							<span className="dashboard-create-btn__hint">Refrescar auditoría</span>
+						</span>
 					</button>
 				</div>
 

@@ -50,6 +50,15 @@ export default function Plazas() {
 		setPlazas((prev) => ({ ...prev, [carrera]: isNaN(num) || num < 0 ? 0 : num }));
 	};
 
+	const adjustPlaza = (carrera, delta) => {
+		setSaved(false);
+		setPlazas((prev) => {
+			const current = Number(prev[carrera] || 0);
+			const next = Math.max(0, current + delta);
+			return { ...prev, [carrera]: next };
+		});
+	};
+
 	const handleSave = () => {
 		localStorage.setItem(PLAZAS_KEY, JSON.stringify(plazas));
 		setSaved(true);
@@ -145,21 +154,50 @@ export default function Plazas() {
 														<span style={{ color: "#22c55e", fontFamily: "monospace" }}>{stats.ingreso}</span>
 													</td>
 													<td style={{ textAlign: "center" }}>
-														<input
-															type="number"
-															min="0"
-															className="form-control form-control-sm text-center"
-															style={{
-																background: "rgba(255,255,255,0.05)",
-																border: "1px solid rgba(148,163,184,0.25)",
-																color: "#f8fafc",
-																width: 100,
-																margin: "0 auto",
-															}}
-															value={plaza === 0 ? "" : plaza}
-															placeholder="0"
-															onChange={(e) => handleChange(carrera, e.target.value)}
-														/>
+														<div className="d-inline-flex align-items-stretch gap-2">
+															<button
+																type="button"
+																className="btn btn-sm btn-outline-secondary"
+																onClick={() => adjustPlaza(carrera, -1)}
+																style={{ minWidth: 40, color: "#cbd5e1", borderColor: "rgba(148,163,184,0.2)" }}
+																aria-label={`Disminuir plazas de ${carrera}`}
+															>
+																	−
+																</button>
+															<input
+																type="number"
+																inputMode="numeric"
+																min="0"
+																className="form-control form-control-sm text-center plazas-number-input"
+																style={{
+																	background: "rgba(255,255,255,0.05)",
+																	border: "1px solid rgba(148,163,184,0.25)",
+																	color: "#f8fafc",
+																	width: 96,
+																	minHeight: 52,
+																	fontWeight: 700,
+																	fontSize: "1rem",
+																	margin: 0,
+																	WebkitAppearance: "none",
+																	MozAppearance: "textfield",
+																	paddingLeft: 0,
+																	paddingRight: 0,
+																	textAlign: "center",
+																}}
+																value={String(plaza)}
+																placeholder="0"
+																onChange={(e) => handleChange(carrera, e.target.value)}
+															/>
+															<button
+																type="button"
+																className="btn btn-sm btn-outline-secondary"
+																onClick={() => adjustPlaza(carrera, 1)}
+																style={{ minWidth: 40, color: "#cbd5e1", borderColor: "rgba(148,163,184,0.2)" }}
+																aria-label={`Aumentar plazas de ${carrera}`}
+															>
+																	+
+																</button>
+														</div>
 													</td>
 													<td style={{ textAlign: "center" }}>
 														{plaza === 0 && (

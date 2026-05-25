@@ -176,8 +176,14 @@ export default function GestUsuarios() {
 							<h1 className="display-6 fw-bold mb-2">Gestión de usuarios</h1>
 							<p className="text-light-emphasis mb-0">Administra perfiles, permisos y estado de acceso de forma segura.</p>
 						</div>
-						<button className="btn btn-glass" onClick={handleOpenModal}>
-							<i className="bi bi-plus-lg"></i> Nuevo usuario
+						<button className="dashboard-create-btn" onClick={handleOpenModal}>
+							<span className="dashboard-create-btn__icon">
+								<i className="bi bi-plus-lg"></i>
+							</span>
+							<span className="dashboard-create-btn__text">
+								<span className="dashboard-create-btn__label">Nuevo usuario</span>
+								<span className="dashboard-create-btn__hint">Crear acceso</span>
+							</span>
 						</button>
 					</div>
 
