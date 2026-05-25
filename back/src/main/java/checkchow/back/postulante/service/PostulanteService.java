@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.time.OffsetDateTime;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -149,12 +150,16 @@ public class PostulanteService {
                 }
 
                 List<Postulante> guardados = postulanteRepository.saveAll(lista);
+                String loteImportacionId = "IMPORT-" + UUID.randomUUID();
                 auditoriaService.registrarEvento(usuarioAutenticadoService.obtenerActualOUsuarioSistema(), null,
                                 TAccion.IMPORTACION, TMetodoHttp.POST, "/api/postulante/import", "postulante",
-                                null, auditoriaService.toJson(Map.of(
+                                loteImportacionId, auditoriaService.toJson(Map.of(
                                                 "accion", "IMPORTACION_POSTULANTES_DBF",
+                                                "loteImportacionId", loteImportacionId,
                                                 "filasRecibidas", rows.size(),
-                                                "registrosGuardadosOActualizados", guardados.size())), null);
+                                                "registrosGuardadosOActualizados", guardados.size(),
+                                                "usuarioId", usuarioAutenticadoService.obtenerActualOUsuarioSistema().getId(),
+                                                "fecha", OffsetDateTime.now())), null);
                 return guardados;
         }
 

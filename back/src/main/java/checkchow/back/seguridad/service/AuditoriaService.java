@@ -26,6 +26,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 @RequiredArgsConstructor
 @Service
@@ -41,9 +43,13 @@ public class AuditoriaService {
 
     @Transactional
     public AuditoriaResponse registrar(AuditoriaRequest request, HttpServletRequest httpRequest) {
+        HttpServletRequest resolvedRequest = resolveRequest(httpRequest);
         Auditoria auditoria = new Auditoria();
         Usuario usuario = buscarUsuario(request.getUsuarioId());
-        Sesion sesion = buscarSesion(request.getSesionId());
+        Sesion sesion = resolveSesion(buscarSesion(request.getSesionId()), resolvedRequest);
+        if (usuario == null && sesion != null) {
+            usuario = sesion.getUsuario();
+        }
 
         auditoria.setUsuario(usuario);
         auditoria.setSesion(sesion);
@@ -54,8 +60,8 @@ public class AuditoriaService {
         auditoria.setEntidadId(request.getEntidadId());
         auditoria.setValorAnterior(request.getValorAnterior());
         auditoria.setValorNuevo(request.getValorNuevo());
-        auditoria.setIpOrigen(getClientInetAddress(httpRequest));
-        auditoria.setUserAgent(getUserAgent(httpRequest));
+        auditoria.setIpOrigen(getClientInetAddress(resolvedRequest));
+        auditoria.setUserAgent(getUserAgent(resolvedRequest));
         auditoria.setFecha(OffsetDateTime.now());
 
         validarAuditoria(auditoria);
@@ -64,7 +70,8 @@ public class AuditoriaService {
 
     @Transactional
     public Sesion registrarSesion(Usuario usuario, String token, HttpServletRequest request) {
-        Dispositivo dispositivo = registrarDispositivo(usuario, request);
+        HttpServletRequest resolvedRequest = resolveRequest(request);
+        Dispositivo dispositivo = registrarDispositivo(usuario, resolvedRequest);
 
         Sesion sesion = new Sesion();
         sesion.setUsuario(usuario);
@@ -80,8 +87,9 @@ public class AuditoriaService {
 
     @Transactional
     public Dispositivo registrarDispositivo(Usuario usuario, HttpServletRequest request) {
-        String userAgent = getUserAgent(request);
-        InetAddress ip = getClientInetAddress(request);
+        HttpServletRequest resolvedRequest = resolveRequest(request);
+        String userAgent = getUserAgent(resolvedRequest);
+        InetAddress ip = getClientInetAddress(resolvedRequest);
 
         return dispositivoRepository
                 .findByUsuarioIdAndUserAgent(usuario.getId(), userAgent)
@@ -107,9 +115,13 @@ public class AuditoriaService {
     public void registrarEvento(Usuario usuario, Sesion sesion, TAccion accion, TMetodoHttp metodoHttp,
                                 String endpoint, String entidad, String entidadId, String valorAnterior,
                                 String valorNuevo, HttpServletRequest request) {
+        HttpServletRequest resolvedRequest = resolveRequest(request);
+        Sesion resolvedSesion = resolveSesion(sesion, resolvedRequest);
+        Usuario resolvedUsuario = usuario != null ? usuario : resolvedSesion != null ? resolvedSesion.getUsuario() : null;
+
         Auditoria auditoria = new Auditoria();
-        auditoria.setUsuario(usuario);
-        auditoria.setSesion(sesion);
+        auditoria.setUsuario(resolvedUsuario);
+        auditoria.setSesion(resolvedSesion);
         auditoria.setAccion(accion);
         auditoria.setMetodoHttp(metodoHttp);
         auditoria.setEndpoint(endpoint);
@@ -117,8 +129,8 @@ public class AuditoriaService {
         auditoria.setEntidadId(entidadId);
         auditoria.setValorAnterior(valorAnterior);
         auditoria.setValorNuevo(valorNuevo);
-        auditoria.setIpOrigen(getClientInetAddress(request));
-        auditoria.setUserAgent(getUserAgent(request));
+        auditoria.setIpOrigen(getClientInetAddress(resolvedRequest));
+        auditoria.setUserAgent(getUserAgent(resolvedRequest));
         auditoria.setFecha(OffsetDateTime.now());
         validarAuditoria(auditoria);
         auditoriaRepository.save(auditoria);
@@ -200,6 +212,39 @@ public class AuditoriaService {
 
     public String getUserAgent(HttpServletRequest request) {
         return request != null ? request.getHeader("User-Agent") : null;
+    }
+
+    private HttpServletRequest resolveRequest(HttpServletRequest request) {
+        if (request != null) {
+            return request;
+        }
+        if (RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes attributes) {
+            return attributes.getRequest();
+        }
+        return null;
+    }
+
+    private Sesion resolveSesion(Sesion sesion, HttpServletRequest request) {
+        if (sesion != null) {
+            return sesion;
+        }
+        String token = getBearerToken(request);
+        if (token == null) {
+            return null;
+        }
+        return sesionRepository.findByToken(token).orElse(null);
+    }
+
+    private String getBearerToken(HttpServletRequest request) {
+        if (request == null) {
+            return null;
+        }
+        String authHeader = request.getHeader("Authorization");
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            return null;
+        }
+        String token = authHeader.substring(7).trim();
+        return token.isBlank() ? null : token;
     }
 
     private InetAddress getClientInetAddress(HttpServletRequest request) {
