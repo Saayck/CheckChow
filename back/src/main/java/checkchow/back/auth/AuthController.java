@@ -1,6 +1,7 @@
 package checkchow.back.auth;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -70,13 +71,15 @@ public class AuthController {
     }
 
     @PostMapping("/logout")
-    public ResponseEntity<?> logout(HttpServletRequest request) {
+    public ResponseEntity<?> logout(HttpServletRequest request, Authentication authentication) {
         String authHeader = request.getHeader("Authorization");
+        String token = null;
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
-            String token = authHeader.substring(7);
+            token = authHeader.substring(7).trim();
             tokenBlacklistService.addToBlacklist(token);
-            auditoriaService.cerrarSesionPorToken(token, request);
         }
+        String email = authentication != null ? authentication.getName() : null;
+        auditoriaService.cerrarSesionPorTokenOUsuario(token, email, request);
         return ResponseEntity.ok("La sesion a sido cerrada correctamente :D");
     }
 }

@@ -1,5 +1,21 @@
 package checkchow.back.seguridad.service;
 
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+import java.time.Duration;
+import java.time.OffsetDateTime;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.stream.Collectors;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
+
 import checkchow.back.enums.TAccion;
 import checkchow.back.enums.TMetodoHttp;
 import checkchow.back.seguridad.dto.AuditoriaRequest;
@@ -13,21 +29,7 @@ import checkchow.back.seguridad.repository.SesionRepository;
 import checkchow.back.user.Usuario;
 import checkchow.back.user.UsuarioRepository;
 import jakarta.servlet.http.HttpServletRequest;
-import java.net.InetAddress;
-import java.net.UnknownHostException;
-import java.time.Duration;
-import java.time.OffsetDateTime;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
-import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.context.request.RequestContextHolder;
-import org.springframework.web.context.request.ServletRequestAttributes;
 
 @RequiredArgsConstructor
 @Service
@@ -70,6 +72,7 @@ public class AuditoriaService {
 
     @Transactional
     public Sesion registrarSesion(Usuario usuario, String token, HttpServletRequest request) {
+        marcarSesionesExpiradas();
         HttpServletRequest resolvedRequest = resolveRequest(request);
         Dispositivo dispositivo = registrarDispositivo(usuario, resolvedRequest);
 
@@ -106,18 +109,19 @@ public class AuditoriaService {
 
     @Transactional
     public void registrarEvento(Usuario usuario, Sesion sesion, TAccion accion, TMetodoHttp metodoHttp,
-                                String endpoint, String entidad, String entidadId, String valorNuevo,
-                                HttpServletRequest request) {
+            String endpoint, String entidad, String entidadId, String valorNuevo,
+            HttpServletRequest request) {
         registrarEvento(usuario, sesion, accion, metodoHttp, endpoint, entidad, entidadId, null, valorNuevo, request);
     }
 
     @Transactional
     public void registrarEvento(Usuario usuario, Sesion sesion, TAccion accion, TMetodoHttp metodoHttp,
-                                String endpoint, String entidad, String entidadId, String valorAnterior,
-                                String valorNuevo, HttpServletRequest request) {
+            String endpoint, String entidad, String entidadId, String valorAnterior,
+            String valorNuevo, HttpServletRequest request) {
         HttpServletRequest resolvedRequest = resolveRequest(request);
         Sesion resolvedSesion = resolveSesion(sesion, resolvedRequest);
-        Usuario resolvedUsuario = usuario != null ? usuario : resolvedSesion != null ? resolvedSesion.getUsuario() : null;
+        Usuario resolvedUsuario = usuario != null ? usuario
+                : resolvedSesion != null ? resolvedSesion.getUsuario() : null;
 
         Auditoria auditoria = new Auditoria();
         auditoria.setUsuario(resolvedUsuario);
@@ -138,23 +142,70 @@ public class AuditoriaService {
 
     @Transactional
     public void cerrarSesionPorToken(String token, HttpServletRequest request) {
-        sesionRepository.findByToken(token).ifPresent(sesion -> {
-            Map<String, Object> anterior = new LinkedHashMap<>();
-            anterior.put("activa", sesion.getActiva());
-            anterior.put("fechaCierre", sesion.getFechaCierre());
-            anterior.put("fechaExpiracion", sesion.getFechaExpiracion());
-            String valorAnterior = toJson(anterior);
-            sesion.setActiva(false);
-            sesion.setFechaCierre(OffsetDateTime.now());
-            sesionRepository.save(sesion);
-            Map<String, Object> nuevo = new LinkedHashMap<>();
-            nuevo.put("activa", sesion.getActiva());
-            nuevo.put("fechaCierre", sesion.getFechaCierre());
-            nuevo.put("fechaExpiracion", sesion.getFechaExpiracion());
-            String valorNuevo = toJson(nuevo);
-            registrarEvento(sesion.getUsuario(), sesion, TAccion.LOGOUT, TMetodoHttp.POST,
-                    "/api/auth/logout", "sesion", String.valueOf(sesion.getId()), valorAnterior, valorNuevo, request);
-        });
+        cerrarSesionPorTokenOUsuario(token, null, request);
+    }
+
+    @Transactional
+    public void cerrarSesionPorTokenOUsuario(String token, String email, HttpServletRequest request) {
+        marcarSesionesExpiradas();
+
+        if (token != null && !token.isBlank()) {
+            Sesion sesion = sesionRepository.findByToken(token).orElse(null);
+            if (sesion != null) {
+                cerrarSesion(sesion, request);
+                if (email == null || email.isBlank()) {
+                    email = sesion.getUsuario().getEmail();
+                }
+            }
+        }
+
+        if (email == null || email.isBlank()) {
+            return;
+        }
+
+        sesionRepository.findByUsuarioEmailAndActivaTrueAndFechaCierreIsNull(email.trim().toLowerCase())
+                .forEach(sesion -> cerrarSesion(sesion, request));
+    }
+
+    @Transactional
+    public void marcarSesionesExpiradas() {
+        OffsetDateTime now = OffsetDateTime.now();
+        sesionRepository.findByActivaTrueAndFechaCierreIsNullAndFechaExpiracionBefore(now)
+                .forEach(sesion -> cerrarSesionSinAuditoria(sesion, now));
+
+        sesionRepository.findByTokenStartingWithAndActivaTrueAndFechaCierreIsNull("REGISTRO-")
+                .forEach(sesion -> cerrarSesionSinAuditoria(sesion, now));
+    }
+
+    private void cerrarSesionSinAuditoria(Sesion sesion, OffsetDateTime fechaCierre) {
+        sesion.setActiva(false);
+        sesion.setFechaCierre(fechaCierre);
+        sesionRepository.save(sesion);
+    }
+
+    private void cerrarSesion(Sesion sesion, HttpServletRequest request) {
+        if (Boolean.FALSE.equals(sesion.getActiva()) && sesion.getFechaCierre() != null) {
+            return;
+        }
+
+        Map<String, Object> anterior = new LinkedHashMap<>();
+        anterior.put("activa", sesion.getActiva());
+        anterior.put("fechaCierre", sesion.getFechaCierre());
+        anterior.put("fechaExpiracion", sesion.getFechaExpiracion());
+        String valorAnterior = toJson(anterior);
+
+        sesion.setActiva(false);
+        sesion.setFechaCierre(OffsetDateTime.now());
+        sesionRepository.save(sesion);
+
+        Map<String, Object> nuevo = new LinkedHashMap<>();
+        nuevo.put("activa", sesion.getActiva());
+        nuevo.put("fechaCierre", sesion.getFechaCierre());
+        nuevo.put("fechaExpiracion", sesion.getFechaExpiracion());
+        String valorNuevo = toJson(nuevo);
+
+        registrarEvento(sesion.getUsuario(), sesion, TAccion.LOGOUT, TMetodoHttp.POST,
+                "/api/auth/logout", "sesion", String.valueOf(sesion.getId()), valorAnterior, valorNuevo, request);
     }
 
     public String toJson(Map<String, Object> values) {
