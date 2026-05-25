@@ -2,8 +2,7 @@ import Header from "../../../components/header";
 import "../../../styles/dashboard.css";
 import { useMemo, useState, useRef, useEffect } from "react";
 import { getConfig } from "../configuracion_calificacion/configuracion_calificacion";
-import { getPlazas } from "../plazas/plazas";
-import { apiRequest } from "../../../utils/api";
+import { getPlazas, hasManualPlazas } from "../plazas/plazas";
 
 const getStored = (key) => {
 	try { return JSON.parse(localStorage.getItem(key) || "[]"); } catch { return []; }
@@ -43,7 +42,6 @@ const calcularDetalle = (estudianteAnswers, claveAnswers, config) => {
 
 export default function Resultados() {
 	const [selectedIdx, setSelectedIdx] = useState(null);
-	const [dbPlazas, setDbPlazas] = useState({});
 	const config = useMemo(() => getConfig(), []);
 	const detalleRef = useRef(null);
 
@@ -53,20 +51,6 @@ export default function Resultados() {
 		}
 	}, [selectedIdx]);
 
-	useEffect(() => {
-		apiRequest("/api/vacante", { redirectOnUnauthorized: false })
-			.then((data) => {
-				const map = {};
-				(data || []).forEach((v) => {
-					const carrera = v.carrera?.nombre;
-					if (!carrera) return;
-					map[carrera] = v.vacantes || 0;
-				});
-				setDbPlazas(map);
-			})
-			.catch(() => {});
-	}, []);
-
 	const resultados = useMemo(() => {
 		const config = getConfig();
 		const estudiantes = getStored("studentResponsesData");
@@ -75,7 +59,8 @@ export default function Resultados() {
 
 		const postulants = getStored("postulantsData");
 		const oficialData = getStored("officialResultsData");
-		const plazas = { ...getPlazas(), ...dbPlazas };
+		const plazas = getPlazas();
+		const manualPlazas = hasManualPlazas();
 
 		const claveIndex = new Map();
 		claves.forEach((c) => claveIndex.set(String(c.tema).trim().toUpperCase(), c.answers));
@@ -93,7 +78,9 @@ export default function Resultados() {
 			const { puntaje, detalle } = calcularDetalle(est.answers, clave, config);
 			const postulant = postulantIndex.get(est.postulantId);
 			const dni = postulant?.dni || "";
-			const oficialEntry = oficialIndex.get(String(dni).trim());
+			const oficialEntry = oficialIndex.get(String(est.litho || "").trim())
+				|| oficialIndex.get(String(postulant?.litho || "").trim())
+				|| oficialIndex.get(String(dni).trim());
 			const carrera = oficialEntry?.carrera || postulant?.carrera || "";
 			return {
 				nombre: est.postulantName,
@@ -108,7 +95,7 @@ export default function Resultados() {
 			};
 		}).filter(Boolean);
 
-		// Condicion OMR: siempre se calcula con puntaje OMR y vacantes del sistema.
+		// Sin plazas manuales, la condicion OMR respeta el PDF oficial.
 		const porCarrera = {};
 		items.forEach((item) => {
 			const c = item.carrera || "";
@@ -119,7 +106,9 @@ export default function Resultados() {
 			grupo.sort((a, b) => b.puntaje - a.puntaje);
 			const n = plazas[carrera] || 0;
 			grupo.forEach((item, idx) => {
-				item.condicionOMR = n > 0 ? (idx < n ? "INGRESO" : "NO INGRESO") : null;
+				item.condicionOMR = manualPlazas && n > 0
+					? (idx < n ? "INGRESO" : "NO INGRESO")
+					: (item.condicionOficial || "NO INGRESO");
 			});
 		});
 
@@ -130,7 +119,7 @@ export default function Resultados() {
 			return b.puntaje - a.puntaje;
 		});
 		return items;
-	}, [dbPlazas]);
+	}, []);
 
 	const selected = selectedIdx !== null ? resultados[selectedIdx] : null;
 

@@ -24,11 +24,37 @@ const getValue = (row, key) => {
 	return found ? row[found] : "";
 };
 
+const getStoredJson = (key, fallback) => {
+	try {
+		const raw = localStorage.getItem(key);
+		return raw ? JSON.parse(raw) : fallback;
+	} catch {
+		return fallback;
+	}
+};
+
 const toText = (value) => String(value ?? "").trim();
 const toBool = (value) => value === true || String(value ?? "").trim().toLowerCase() === "true" || String(value ?? "").trim() === "1";
 const parseAnswer = (value) => {
 	const match = String(value ?? "").trim().match(/[A-Ea-e]/);
 	return match ? match[0].toUpperCase() : "";
+};
+
+const buildRespuestaPayload = (item) => {
+	const respuestas = {};
+	for (let i = 1; i <= 120; i += 1) {
+		const key = `PREG_${String(i).padStart(3, "0")}`;
+		const answer = parseAnswer(item.answers?.[key]);
+		if (answer) respuestas[i] = answer;
+	}
+	return {
+		lithocode: toText(item.litho),
+		codigoTema: toText(item.tema).toUpperCase(),
+		anulado: false,
+		lecturaDudosa: false,
+		observacion: "Sincronizado desde respuestas importadas",
+		respuestas,
+	};
 };
 
 export default function Omr() {
@@ -39,6 +65,7 @@ export default function Omr() {
 	const [procesos, setProcesos] = useState([]);
 	const [procesoId, setProcesoId] = useState("");
 	const [importing, setImporting] = useState(false);
+	const [respuestasLocalCount, setRespuestasLocalCount] = useState(() => getStoredJson("studentResponsesData", []).length);
 
 	useEffect(() => {
 		apiRequest("/api/proceso-admision", { redirectOnUnauthorized: false })
@@ -138,6 +165,34 @@ export default function Omr() {
 		}
 	};
 
+	const syncRespuestasImportadas = async () => {
+		setImporting(true);
+		setMessage("");
+		try {
+			const stored = getStoredJson("studentResponsesData", []);
+			setRespuestasLocalCount(stored.length);
+			const payload = stored
+				.map(buildRespuestaPayload)
+				.filter((row) => row.lithocode && Object.keys(row.respuestas).length > 0);
+
+			if (payload.length === 0) {
+				setMessage("No hay respuestas de estudiantes importadas para sincronizar. Primero importa respuest.xls en Respuestas de estudiantes.");
+				return;
+			}
+
+			const query = procesoId ? `?procesoId=${encodeURIComponent(procesoId)}` : "";
+			const result = await apiRequest(`/api/omr/respuestas/import${query}`, {
+				method: "POST",
+				body: JSON.stringify(payload),
+			});
+			setMessage(`Respuestas sincronizadas desde el módulo de respuestas: ${result.guardados} nuevas, ${result.actualizados} actualizadas, ${result.omitidos} omitidas.`);
+		} catch (err) {
+			setMessage(err.message || "No se pudo sincronizar las respuestas ya importadas.");
+		} finally {
+			setImporting(false);
+		}
+	};
+
 	const fields = union ? Object.entries(union) : [];
 
 	return (
@@ -147,7 +202,7 @@ export default function Omr() {
 				<div className="page-title mb-4">
 					<span className="eyebrow">Modulo 2</span>
 					<h1 className="display-6 fw-bold mb-2">Union OMR</h1>
-					<p className="text-light-emphasis mb-0">Importa identifi.xls/respuest.xls y une por LITHO.</p>
+					<p className="text-light-emphasis mb-0">Importa identifi.xls y une por LITHO. Si las respuestas ya fueron cargadas, sincronízalas desde el módulo de respuestas.</p>
 				</div>
 
 				<div className="row g-4">
@@ -181,8 +236,11 @@ export default function Omr() {
 										Importar identifi.xls
 										<input type="file" accept=".xls,.xlsx" onChange={(event) => importIdentificaciones(event.target.files?.[0])} style={{ display: "none" }} disabled={importing} />
 									</label>
+									<button type="button" className="btn btn-outline-light btn-sm" onClick={syncRespuestasImportadas} disabled={importing}>
+										Sincronizar respuestas ya importadas ({respuestasLocalCount})
+									</button>
 									<label className="btn btn-outline-light btn-sm" style={{ cursor: "pointer" }}>
-										Importar respuest.xls
+										Importar respuest.xls manualmente
 										<input type="file" accept=".xls,.xlsx" onChange={(event) => importRespuestas(event.target.files?.[0])} style={{ display: "none" }} disabled={importing} />
 									</label>
 								</div>

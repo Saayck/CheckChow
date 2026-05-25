@@ -1,7 +1,9 @@
 package checkchow.back.postulante.service;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
@@ -9,9 +11,13 @@ import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import checkchow.back.admision.entity.Carrera;
 import checkchow.back.admision.repository.CarreraRepository;
+import checkchow.back.enums.TAccion;
+import checkchow.back.enums.TMetodoHttp;
 import checkchow.back.postulante.dto.PostulanteImportDTO;
 import checkchow.back.postulante.entity.Postulante;
 import checkchow.back.postulante.repository.PostulanteRepository;
+import checkchow.back.seguridad.service.AuditoriaService;
+import checkchow.back.seguridad.service.UsuarioAutenticadoService;
 
 @Service
 @RequiredArgsConstructor
@@ -19,6 +25,8 @@ import checkchow.back.postulante.repository.PostulanteRepository;
 public class PostulanteService {
         private final CarreraRepository carreraRepository;
         private final PostulanteRepository postulanteRepository;
+        private final AuditoriaService auditoriaService;
+        private final UsuarioAutenticadoService usuarioAutenticadoService;
 
         public List<Postulante> listar() {
                 return postulanteRepository.findAll();
@@ -50,7 +58,11 @@ public class PostulanteService {
                                         "Codigo postulante ya registrado");
                 }
 
-                return postulanteRepository.save(postulante);
+                Postulante guardado = postulanteRepository.save(postulante);
+                auditoriaService.registrarEvento(usuarioAutenticadoService.obtenerActualOUsuarioSistema(), null,
+                                TAccion.CREATE, TMetodoHttp.POST, "/api/postulante", "postulante",
+                                String.valueOf(guardado.getId()), snapshot(guardado), null);
+                return guardado;
         }
 
         public Postulante actualizar(
@@ -58,6 +70,7 @@ public class PostulanteService {
                         Postulante data) {
 
                 Postulante postulante = obtener(id);
+                String valorAnterior = snapshot(postulante);
 
                 postulante.setDni(data.getDni());
                 postulante.setCodPostulante(
@@ -71,14 +84,24 @@ public class PostulanteService {
                 postulante.setCarrera(
                                 data.getCarrera());
 
-                return postulanteRepository.save(postulante);
+                Postulante guardado = postulanteRepository.save(postulante);
+                auditoriaService.registrarEvento(usuarioAutenticadoService.obtenerActualOUsuarioSistema(), null,
+                                TAccion.UPDATE, TMetodoHttp.PUT, "/api/postulante/" + id, "postulante",
+                                String.valueOf(id), valorAnterior, snapshot(guardado), null);
+                return guardado;
         }
 
         public void eliminar(Integer id) {
 
                 Postulante postulante = obtener(id);
 
+                String valorAnterior = snapshot(postulante);
+
                 postulanteRepository.delete(postulante);
+                auditoriaService.registrarEvento(usuarioAutenticadoService.obtenerActualOUsuarioSistema(), null,
+                                TAccion.DELETE, TMetodoHttp.DELETE, "/api/postulante/" + id, "postulante",
+                                String.valueOf(id), valorAnterior,
+                                auditoriaService.toJson(Map.of("accion", "POSTULANTE_ELIMINADO", "id", id)), null);
         }
 
         @Transactional
@@ -125,7 +148,26 @@ public class PostulanteService {
                         lista.add(p);
                 }
 
-                return postulanteRepository.saveAll(lista);
+                List<Postulante> guardados = postulanteRepository.saveAll(lista);
+                auditoriaService.registrarEvento(usuarioAutenticadoService.obtenerActualOUsuarioSistema(), null,
+                                TAccion.IMPORTACION, TMetodoHttp.POST, "/api/postulante/import", "postulante",
+                                null, auditoriaService.toJson(Map.of(
+                                                "accion", "IMPORTACION_POSTULANTES_DBF",
+                                                "filasRecibidas", rows.size(),
+                                                "registrosGuardadosOActualizados", guardados.size())), null);
+                return guardados;
+        }
+
+        private String snapshot(Postulante postulante) {
+                Map<String, Object> data = new LinkedHashMap<>();
+                data.put("id", postulante.getId());
+                data.put("dni", postulante.getDni());
+                data.put("codPostulante", postulante.getCodPostulante());
+                data.put("nombres", postulante.getNombres());
+                data.put("apellidoPat", postulante.getApellidoPat());
+                data.put("apellidoMat", postulante.getApellidoMat());
+                data.put("carreraId", postulante.getCarrera() != null ? postulante.getCarrera().getId() : null);
+                return auditoriaService.toJson(data);
         }
 
         private String buildCodPostulante(String litho) {

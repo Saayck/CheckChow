@@ -34,7 +34,7 @@ public class Sesion {
     @Column(name = "fecha_inicio", nullable = false)
     private OffsetDateTime fechaInicio = OffsetDateTime.now();
 
-    @Column(name = "fecha_expiracion")
+    @Column(name = "fecha_expiracion", nullable = false)
     private OffsetDateTime fechaExpiracion;
 
     @Column(name = "fecha_cierre")

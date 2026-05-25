@@ -1,7 +1,9 @@
 package checkchow.back.omr.service;
 
 import java.time.OffsetDateTime;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import org.springframework.stereotype.Service;
@@ -9,6 +11,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import checkchow.back.admision.entity.ProcesoAdmision;
 import checkchow.back.admision.repository.ProcesoAdmisionRepository;
+import checkchow.back.enums.TAccion;
+import checkchow.back.enums.TMetodoHttp;
 import checkchow.back.omr.dto.OmrIdentificacionImportDTO;
 import checkchow.back.omr.dto.OmrImportResponse;
 import checkchow.back.omr.dto.OmrRespuestaImportDTO;
@@ -23,6 +27,7 @@ import checkchow.back.omr.repository.OmrRespuestaRepository;
 import checkchow.back.omr.repository.OmrUnionRepository;
 import checkchow.back.postulante.entity.Postulante;
 import checkchow.back.postulante.repository.PostulanteRepository;
+import checkchow.back.seguridad.service.AuditoriaService;
 import checkchow.back.seguridad.service.UsuarioAutenticadoService;
 import lombok.RequiredArgsConstructor;
 
@@ -38,6 +43,7 @@ public class OmrService {
         private final PostulanteRepository postulanteRepo;
         private final ProcesoAdmisionRepository procesoRepo;
         private final UsuarioAutenticadoService usuarioAutenticadoService;
+        private final AuditoriaService auditoriaService;
 
         public OmrImportResponse importarIdentificaciones(Integer procesoId, List<OmrIdentificacionImportDTO> rows) {
                 ProcesoAdmision proceso = obtenerProceso(procesoId);
@@ -72,7 +78,18 @@ public class OmrService {
                         }
                 }
 
-                return new OmrImportResponse(rows.size(), guardados, actualizados, omitidos);
+                OmrImportResponse response = new OmrImportResponse(rows.size(), guardados, actualizados, omitidos);
+                auditoriaService.registrarEvento(usuarioAutenticadoService.obtenerActualOUsuarioSistema(), null,
+                                TAccion.IMPORTACION, TMetodoHttp.POST, "/api/omr/identificaciones/import",
+                                "omr_identificacion", proceso.getId() != null ? String.valueOf(proceso.getId()) : null,
+                                auditoriaService.toJson(Map.of(
+                                                "accion", "IMPORTACION_OMR_IDENTIFICACIONES",
+                                                "procesoId", proceso.getId(),
+                                                "filasRecibidas", rows.size(),
+                                                "guardados", guardados,
+                                                "actualizados", actualizados,
+                                                "omitidos", omitidos)), null);
+                return response;
         }
 
         public OmrImportResponse importarRespuestas(Integer procesoId, List<OmrRespuestaImportDTO> rows) {
@@ -118,7 +135,18 @@ public class OmrService {
                         }
                 }
 
-                return new OmrImportResponse(rows.size(), guardados, actualizados, omitidos);
+                OmrImportResponse response = new OmrImportResponse(rows.size(), guardados, actualizados, omitidos);
+                auditoriaService.registrarEvento(usuarioAutenticadoService.obtenerActualOUsuarioSistema(), null,
+                                TAccion.IMPORTACION, TMetodoHttp.POST, "/api/omr/respuestas/import",
+                                "omr_respuesta", proceso.getId() != null ? String.valueOf(proceso.getId()) : null,
+                                auditoriaService.toJson(Map.of(
+                                                "accion", "IMPORTACION_OMR_RESPUESTAS",
+                                                "procesoId", proceso.getId(),
+                                                "filasRecibidas", rows.size(),
+                                                "guardados", guardados,
+                                                "actualizados", actualizados,
+                                                "omitidos", omitidos)), null);
+                return response;
         }
 
         public OmrUnionResponse crearUnion(String lithocode) {
@@ -141,7 +169,12 @@ public class OmrService {
                 union.setMotivoInvalido(datos.motivoInvalido());
                 union.setProcesadoPor(usuarioAutenticadoService.obtenerActualOUsuarioSistema());
 
-                return toResponse(unionRepo.save(union));
+                OmrUnion guardada = unionRepo.save(union);
+                OmrUnionResponse response = toResponse(guardada);
+                auditoriaService.registrarEvento(usuarioAutenticadoService.obtenerActualOUsuarioSistema(), null,
+                                TAccion.CREATE, TMetodoHttp.POST, "/api/omr/union/" + code,
+                                "omr_union", String.valueOf(guardada.getId()), snapshot(response), null);
+                return response;
         }
 
         public OmrUnionResponse obtenerUnion(String lithocode) {
@@ -209,6 +242,22 @@ public class OmrService {
                         if (found.isPresent()) return found;
                 }
                 return Optional.empty();
+        }
+
+        private String snapshot(OmrUnionResponse union) {
+                Map<String, Object> data = new LinkedHashMap<>();
+                data.put("id", union.id());
+                data.put("lithocode", union.lithocode());
+                data.put("temasCoinciden", union.temasCoinciden());
+                data.put("postulanteEncontrado", union.postulanteEncontrado());
+                data.put("unionValida", union.unionValida());
+                data.put("motivoInvalido", union.motivoInvalido());
+                data.put("identificacionId", union.identificacionId());
+                data.put("respuestaId", union.respuestaId());
+                data.put("postulanteId", union.postulanteId());
+                data.put("procesadoPor", union.procesadoPor());
+                data.put("procesadoEn", union.procesadoEn());
+                return auditoriaService.toJson(data);
         }
 
         private Optional<OmrIdentificacion> buscarIdentificacionPorLitho(String lithocode) {

@@ -4,13 +4,29 @@ import { useState, useMemo, useEffect } from "react";
 import { apiRequest } from "../../../utils/api";
 
 const PLAZAS_KEY = "plazasData";
+const PLAZAS_MANUAL_KEY = "plazasDataManualV2";
+const PLAZAS_MANUAL_LEGACY_KEY = "plazasDataManual";
 const OFFICIAL_KEY = "officialResultsData";
 
 const getStored = (key, fallback) => {
 	try { return JSON.parse(localStorage.getItem(key) || null) ?? fallback; } catch { return fallback; }
 };
 
-export const getPlazas = () => getStored(PLAZAS_KEY, {});
+export const getPlazas = () => {
+	try {
+		return localStorage.getItem(PLAZAS_MANUAL_KEY) === "true" ? getStored(PLAZAS_KEY, {}) : {};
+	} catch {
+		return {};
+	}
+};
+
+export const hasManualPlazas = () => {
+	try {
+		return localStorage.getItem(PLAZAS_MANUAL_KEY) === "true";
+	} catch {
+		return false;
+	}
+};
 
 export default function Plazas() {
 	const oficial = useMemo(() => getStored(OFFICIAL_KEY, []), []);
@@ -61,12 +77,16 @@ export default function Plazas() {
 
 	const handleSave = () => {
 		localStorage.setItem(PLAZAS_KEY, JSON.stringify(plazas));
+		localStorage.setItem(PLAZAS_MANUAL_KEY, "true");
 		setSaved(true);
 	};
 
 	const handleReset = () => {
 		const empty = Object.fromEntries(carreras.map((c) => [c, 0]));
 		setPlazas(empty);
+		localStorage.removeItem(PLAZAS_KEY);
+		localStorage.removeItem(PLAZAS_MANUAL_KEY);
+		localStorage.removeItem(PLAZAS_MANUAL_LEGACY_KEY);
 		setSaved(false);
 	};
 

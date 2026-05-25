@@ -53,6 +53,11 @@ const limpiarFacultad = (linea) =>
 		.replace(/\s+ESCUELA\s+.*$/i, "")
 		.trim();
 
+const normalizarCondicion = (value) => {
+	const text = String(value || "").replace(/\s+/g, " ").trim().toUpperCase();
+	return text === "INGRESO" ? "INGRESO" : "NO INGRESO";
+};
+
 // Parsea una línea intentando extraer: SEC CODIGO NOMBRE PUNTAJE MERITO CONDICION
 const parsearFilaEstudiante = (linea) => {
 	// Intenta primero el patrón con puntaje decimal
@@ -66,7 +71,7 @@ const parsearFilaEstudiante = (linea) => {
 			nombre: m[3].trim(),
 			puntaje: parseFloat(m[4]),
 			merito: m[5].trim(),
-			condicion: m[6].replace(/\s+/, " ").trim(),
+			condicion: normalizarCondicion(m[6]),
 		};
 	}
 
@@ -81,11 +86,44 @@ const parsearFilaEstudiante = (linea) => {
 			nombre: m[3].trim(),
 			puntaje: 0,
 			merito: 0,
-			condicion: (m[5] || "INGRESO").trim(),
+			condicion: normalizarCondicion(m[5]),
 		};
 	}
 
 	return null;
+};
+
+const parsearFilaEstudianteSeguro = (linea) => {
+	const patterns = [
+		{
+			regex: /^(\d{4})\s+(\d{5,8})\s+(.+?)\s+([\d]{1,6}\.[\d]{1,3})\s+(\d{1,4})\s+(NO\s+INGRESO|INGRESO)/i,
+			build: (m) => ({ puntaje: parseFloat(m[4]), merito: m[5].trim(), condicion: m[6] }),
+		},
+		{
+			regex: /^(\d{4})\s+(\d{5,8})\s+(.+?)\s+([\d]{1,6}\.[\d]{1,3})\s+(NO\s+INGRESO|INGRESO)$/i,
+			build: (m) => ({ puntaje: parseFloat(m[4]), merito: 0, condicion: m[5] }),
+		},
+		{
+			regex: /^(\d{4})\s+(\d{5,8})\s+(.+?)\s+([A-ZÁÉÍÓÚÑ\s]+?)(?:\s+(NO\s+INGRESO|INGRESO))?$/i,
+			build: (m) => ({ puntaje: 0, merito: 0, condicion: m[5] }),
+		},
+	];
+
+	for (const pattern of patterns) {
+		const m = linea.match(pattern.regex);
+		if (!m) continue;
+		const extra = pattern.build(m);
+		return {
+			sec: m[1],
+			dni: m[2].trim(),
+			nombre: m[3].trim(),
+			puntaje: extra.puntaje,
+			merito: extra.merito,
+			condicion: normalizarCondicion(extra.condicion),
+		};
+	}
+
+	return parsearFilaEstudiante(linea);
 };
 
 export default function ResultadosOficiales() {
@@ -173,7 +211,7 @@ export default function ResultadosOficiales() {
 				}
 				const vacantesLinea = detectVacantes(linea);
 				if (vacantesLinea !== null) vacantesActuales = vacantesLinea;
-				const fila = parsearFilaEstudiante(linea);
+				const fila = parsearFilaEstudianteSeguro(linea);
 				if (fila) {
 					resultados.push({ ...fila, carrera: carreraActual, facultad: facultadActual, vacantesPdf: vacantesActuales });
 				}

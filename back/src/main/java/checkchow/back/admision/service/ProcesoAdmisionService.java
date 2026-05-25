@@ -1,13 +1,19 @@
 package checkchow.back.admision.service;
 
 import java.time.OffsetDateTime;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import checkchow.back.admision.entity.ProcesoAdmision;
 import checkchow.back.admision.repository.ProcesoAdmisionRepository;
+import checkchow.back.enums.TAccion;
+import checkchow.back.enums.TMetodoHttp;
+import checkchow.back.seguridad.service.AuditoriaService;
 import checkchow.back.seguridad.service.UsuarioAutenticadoService;
+import checkchow.back.user.Usuario;
 
 @Service
 @RequiredArgsConstructor
@@ -19,6 +25,7 @@ public class ProcesoAdmisionService {
             procesoRepository;
 
     private final UsuarioAutenticadoService usuarioAutenticadoService;
+    private final AuditoriaService auditoriaService;
 
     public List<ProcesoAdmision>
     listar() {
@@ -67,11 +74,14 @@ public class ProcesoAdmisionService {
         proceso.setFechaModificacion(
                 OffsetDateTime.now());
 
-        proceso.setCreadoPor(
-                usuarioAutenticadoService.obtenerActual());
+        Usuario usuario = usuarioAutenticadoService.obtenerActual();
+        proceso.setCreadoPor(usuario);
 
-        return procesoRepository
-                .save(proceso);
+        ProcesoAdmision guardado = procesoRepository.save(proceso);
+        auditoriaService.registrarEvento(usuario, null, TAccion.CREATE, TMetodoHttp.POST,
+                "/api/proceso-admision", "proceso_admision", String.valueOf(guardado.getId()),
+                snapshot(guardado), null);
+        return guardado;
     }
 
     public ProcesoAdmision
@@ -79,8 +89,8 @@ public class ProcesoAdmisionService {
             Integer id,
             ProcesoAdmision data) {
 
-        ProcesoAdmision proceso =
-                obtener(id);
+        ProcesoAdmision proceso = obtener(id);
+        String valorAnterior = snapshot(proceso);
 
         proceso.setCodigo(
                 data.getCodigo());
@@ -111,8 +121,11 @@ public class ProcesoAdmisionService {
         proceso.setFechaModificacion(
                 OffsetDateTime.now());
 
-        return procesoRepository
-                .save(proceso);
+        ProcesoAdmision guardado = procesoRepository.save(proceso);
+        auditoriaService.registrarEvento(usuarioAutenticadoService.obtenerActualOUsuarioSistema(), null,
+                TAccion.UPDATE, TMetodoHttp.PUT, "/api/proceso-admision/" + id,
+                "proceso_admision", String.valueOf(id), valorAnterior, snapshot(guardado), null);
+        return guardado;
     }
 
     public void eliminar(
@@ -121,7 +134,28 @@ public class ProcesoAdmisionService {
         ProcesoAdmision proceso =
                 obtener(id);
 
-        procesoRepository
-                .delete(proceso);
+        String valorAnterior = snapshot(proceso);
+
+        procesoRepository.delete(proceso);
+        auditoriaService.registrarEvento(usuarioAutenticadoService.obtenerActualOUsuarioSistema(), null,
+                TAccion.DELETE, TMetodoHttp.DELETE, "/api/proceso-admision/" + id,
+                "proceso_admision", String.valueOf(id), valorAnterior,
+                auditoriaService.toJson(Map.of("accion", "PROCESO_ADMISION_ELIMINADO", "id", id)), null);
+    }
+
+    private String snapshot(ProcesoAdmision proceso) {
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("id", proceso.getId());
+        data.put("codigo", proceso.getCodigo());
+        data.put("anio", proceso.getAnio());
+        data.put("periodo", proceso.getPeriodo());
+        data.put("descripcion", proceso.getDescription());
+        data.put("tipoProcesoAdmision", proceso.getTipoProcesoAdmision());
+        data.put("fechaExamen", proceso.getFechaExamen());
+        data.put("estado", proceso.getEstado());
+        data.put("creadoPorId", proceso.getCreadoPor() != null ? proceso.getCreadoPor().getId() : null);
+        data.put("fechaCreacion", proceso.getFechaCreacion());
+        data.put("fechaModificacion", proceso.getFechaModificacion());
+        return auditoriaService.toJson(data);
     }
 }

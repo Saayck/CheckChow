@@ -1,7 +1,6 @@
 import { apiRequest } from "./api";
 
 const OFFICIAL_KEY = "officialResultsData";
-const PLAZAS_KEY = "plazasData";
 
 export const normalizeText = (value) =>
 	String(value || "")
@@ -105,7 +104,6 @@ export const upsertOfficialImport = async ({ resultados, metadata, procesoId, se
 	let facultadesCreadas = 0;
 	let carrerasCreadas = 0;
 	let vacantesGuardadas = 0;
-	const plazasLocal = {};
 
 	for (const grupo of grupos.values()) {
 		const facKey = normalizeText(grupo.facultad);
@@ -141,8 +139,9 @@ export const upsertOfficialImport = async ({ resultados, metadata, procesoId, se
 			carrerasCreadas += 1;
 		}
 
-		const vacantesCalculadas = Number(grupo.vacantesPdf || grupo.ingreso || 0);
-		plazasLocal[carrera.nombre] = vacantesCalculadas;
+		const vacantesCalculadas = grupo.vacantesPdf === null || grupo.vacantesPdf === undefined
+			? 0
+			: Number(grupo.vacantesPdf);
 		if (vacantesCalculadas > 0) {
 			const existente = vacanteByCarrera.get(String(carrera.id));
 			const payload = {
@@ -171,10 +170,6 @@ export const upsertOfficialImport = async ({ resultados, metadata, procesoId, se
 			setMensaje(`Sincronizando ${vacantesGuardadas}/${grupos.size} carrera(s)...`);
 		}
 	}
-
-	try {
-		localStorage.setItem(PLAZAS_KEY, JSON.stringify(plazasLocal));
-	} catch {}
 
 	return {
 		facultadesCreadas,

@@ -15,10 +15,15 @@ import checkchow.back.user.UsuarioRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.time.Duration;
 import java.time.OffsetDateTime;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,6 +35,9 @@ public class AuditoriaService {
     private final SesionRepository sesionRepository;
     private final DispositivoRepository dispositivoRepository;
     private final UsuarioRepository usuarioRepository;
+
+    @Value("${jwt.expiration}")
+    private long jwtExpirationMs;
 
     @Transactional
     public AuditoriaResponse registrar(AuditoriaRequest request, HttpServletRequest httpRequest) {
@@ -50,6 +58,7 @@ public class AuditoriaService {
         auditoria.setUserAgent(getUserAgent(httpRequest));
         auditoria.setFecha(OffsetDateTime.now());
 
+        validarAuditoria(auditoria);
         return toResponse(auditoriaRepository.save(auditoria));
     }
 
@@ -62,7 +71,9 @@ public class AuditoriaService {
         sesion.setDispositivo(dispositivo);
         sesion.setToken(token != null && !token.isBlank() ? token : UUID.randomUUID().toString());
         sesion.setActiva(true);
-        sesion.setFechaInicio(OffsetDateTime.now());
+        OffsetDateTime fechaInicio = OffsetDateTime.now();
+        sesion.setFechaInicio(fechaInicio);
+        sesion.setFechaExpiracion(fechaInicio.plus(Duration.ofMillis(jwtExpirationMs)));
 
         return sesionRepository.save(sesion);
     }
@@ -89,6 +100,13 @@ public class AuditoriaService {
     public void registrarEvento(Usuario usuario, Sesion sesion, TAccion accion, TMetodoHttp metodoHttp,
                                 String endpoint, String entidad, String entidadId, String valorNuevo,
                                 HttpServletRequest request) {
+        registrarEvento(usuario, sesion, accion, metodoHttp, endpoint, entidad, entidadId, null, valorNuevo, request);
+    }
+
+    @Transactional
+    public void registrarEvento(Usuario usuario, Sesion sesion, TAccion accion, TMetodoHttp metodoHttp,
+                                String endpoint, String entidad, String entidadId, String valorAnterior,
+                                String valorNuevo, HttpServletRequest request) {
         Auditoria auditoria = new Auditoria();
         auditoria.setUsuario(usuario);
         auditoria.setSesion(sesion);
@@ -97,22 +115,62 @@ public class AuditoriaService {
         auditoria.setEndpoint(endpoint);
         auditoria.setEntidad(entidad);
         auditoria.setEntidadId(entidadId);
+        auditoria.setValorAnterior(valorAnterior);
         auditoria.setValorNuevo(valorNuevo);
         auditoria.setIpOrigen(getClientInetAddress(request));
         auditoria.setUserAgent(getUserAgent(request));
         auditoria.setFecha(OffsetDateTime.now());
+        validarAuditoria(auditoria);
         auditoriaRepository.save(auditoria);
     }
 
     @Transactional
     public void cerrarSesionPorToken(String token, HttpServletRequest request) {
         sesionRepository.findByToken(token).ifPresent(sesion -> {
+            Map<String, Object> anterior = new LinkedHashMap<>();
+            anterior.put("activa", sesion.getActiva());
+            anterior.put("fechaCierre", sesion.getFechaCierre());
+            anterior.put("fechaExpiracion", sesion.getFechaExpiracion());
+            String valorAnterior = toJson(anterior);
             sesion.setActiva(false);
             sesion.setFechaCierre(OffsetDateTime.now());
             sesionRepository.save(sesion);
+            Map<String, Object> nuevo = new LinkedHashMap<>();
+            nuevo.put("activa", sesion.getActiva());
+            nuevo.put("fechaCierre", sesion.getFechaCierre());
+            nuevo.put("fechaExpiracion", sesion.getFechaExpiracion());
+            String valorNuevo = toJson(nuevo);
             registrarEvento(sesion.getUsuario(), sesion, TAccion.LOGOUT, TMetodoHttp.POST,
-                    "/api/auth/logout", "sesion", String.valueOf(sesion.getId()), null, request);
+                    "/api/auth/logout", "sesion", String.valueOf(sesion.getId()), valorAnterior, valorNuevo, request);
         });
+    }
+
+    public String toJson(Map<String, Object> values) {
+        return values.entrySet().stream()
+                .map(entry -> quote(entry.getKey()) + ":" + toJsonValue(entry.getValue()))
+                .collect(Collectors.joining(",", "{", "}"));
+    }
+
+    private String toJsonValue(Object value) {
+        if (value == null) {
+            return "null";
+        }
+        if (value instanceof Number || value instanceof Boolean) {
+            return value.toString();
+        }
+        if (value instanceof Enum<?> enumValue) {
+            return quote(enumValue.name());
+        }
+        return quote(value.toString());
+    }
+
+    private String quote(String value) {
+        return "\"" + value
+                .replace("\\", "\\\\")
+                .replace("\"", "\\\"")
+                .replace("\n", "\\n")
+                .replace("\r", "\\r")
+                .replace("\t", "\\t") + "\"";
     }
 
     @Transactional(readOnly = true)
@@ -170,6 +228,35 @@ public class AuditoriaService {
         }
         return sesionRepository.findById(sesionId)
                 .orElseThrow(() -> new RuntimeException("Sesion no encontrada con id: " + sesionId));
+    }
+
+    private void validarAuditoria(Auditoria auditoria) {
+        if (auditoria.getAccion() == null) {
+            throw new IllegalArgumentException("La accion de auditoria es obligatoria");
+        }
+        if (auditoria.getMetodoHttp() == null) {
+            throw new IllegalArgumentException("El metodo HTTP de auditoria es obligatorio");
+        }
+        if (isBlank(auditoria.getEndpoint())) {
+            throw new IllegalArgumentException("El endpoint de auditoria es obligatorio");
+        }
+        if (isBlank(auditoria.getEntidad())) {
+            throw new IllegalArgumentException("La entidad de auditoria es obligatoria");
+        }
+        if (isBlank(auditoria.getValorNuevo())) {
+            throw new IllegalArgumentException("valor_nuevo de auditoria es obligatorio");
+        }
+        if (requiereValorAnterior(auditoria.getAccion()) && isBlank(auditoria.getValorAnterior())) {
+            throw new IllegalArgumentException("valor_anterior es obligatorio para acciones UPDATE y DELETE");
+        }
+    }
+
+    private boolean requiereValorAnterior(TAccion accion) {
+        return accion == TAccion.UPDATE || accion == TAccion.DELETE;
+    }
+
+    private boolean isBlank(String value) {
+        return value == null || value.isBlank();
     }
 
     private String detectarSistemaOperativo(String userAgent) {

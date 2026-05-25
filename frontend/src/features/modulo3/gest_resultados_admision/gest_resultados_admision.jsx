@@ -2,6 +2,9 @@ import { useEffect, useState, useMemo } from "react";
 import Header from "../../../components/header";
 import "../../../styles/dashboard.css";
 import { apiRequest } from "../../../utils/api";
+import { writeRowsToXlsx } from "../../../utils/excel";
+import { getConfig } from "../configuracion_calificacion/configuracion_calificacion";
+import { getPlazas, hasManualPlazas } from "../plazas/plazas";
 
 const condicionStyle = (condicion) => {
 	switch (String(condicion).toUpperCase()) {
@@ -17,6 +20,14 @@ const condicionStyle = (condicion) => {
 const nombreCompleto = (p) =>
 	[p?.nombres, p?.apellidoPat, p?.apellidoMat].filter(Boolean).join(" ");
 
+const normalizeName = (value) =>
+	String(value || "")
+		.normalize("NFD")
+		.replace(/[\u0300-\u036f]/g, "")
+		.replace(/\s+/g, " ")
+		.trim()
+		.toUpperCase();
+
 const formatFecha = (iso) => {
 	if (!iso) return "—";
 	try {
@@ -24,11 +35,103 @@ const formatFecha = (iso) => {
 	} catch { return iso; }
 };
 
+const formatPuntaje = (value) => Number.isFinite(Number(value)) ? Number(value).toFixed(4) : "";
+
+const escapeHtml = (value) => String(value ?? "")
+	.replace(/&/g, "&amp;")
+	.replace(/</g, "&lt;")
+	.replace(/>/g, "&gt;")
+	.replace(/"/g, "&quot;")
+	.replace(/'/g, "&#039;");
+
+const carreraResultado = (r) => r.inscripcion?.carrera?.nombre || "SIN CARRERA";
+
+const buildExportRows = (rows) => rows.map((r) => {
+	const postulante = r.inscripcion?.postulante || {};
+	return {
+		merito: r.ordenMerito ?? "",
+		postulante: nombreCompleto(postulante) || "",
+		dni: postulante.dni || "",
+		carrera: carreraResultado(r),
+		puntaje: formatPuntaje(r.puntajeFinal),
+		condicion: r.condicion || "",
+		publicado: r.publicado ? "SI" : "NO",
+		fechaPublicacion: formatFecha(r.fechaPublicacion),
+	};
+});
+
+const buildPrintableReport = ({ titulo, subtitulo, rows }) => {
+	const bodyRows = rows.map((r) => `
+		<tr>
+			<td>${escapeHtml(r.merito)}</td>
+			<td>${escapeHtml(r.postulante)}</td>
+			<td>${escapeHtml(r.dni)}</td>
+			<td>${escapeHtml(r.carrera)}</td>
+			<td>${escapeHtml(r.puntaje)}</td>
+			<td>${escapeHtml(r.condicion)}</td>
+			<td>${escapeHtml(r.publicado)}</td>
+			<td>${escapeHtml(r.fechaPublicacion)}</td>
+		</tr>
+	`).join("");
+
+	return `<!doctype html>
+<html>
+<head>
+	<meta charset="utf-8" />
+	<title>${escapeHtml(titulo)}</title>
+	<style>
+		@page { size: A4 landscape; margin: 12mm; }
+		body { margin: 0; color: #000; font-family: Arial, Helvetica, sans-serif; font-size: 10px; }
+		h1 { margin: 0 0 4px; text-align: center; font-size: 16px; text-transform: uppercase; }
+		.subtitle { margin: 0 0 14px; text-align: center; font-size: 12px; font-weight: 600; }
+		table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+		th, td { border: 1px solid #999; padding: 5px 6px; vertical-align: middle; overflow-wrap: anywhere; }
+		th { background: #d9d9d9; font-size: 9px; text-align: center; font-weight: 700; }
+		td:nth-child(1), td:nth-child(3), td:nth-child(6), td:nth-child(7), td:nth-child(8) { text-align: center; }
+		td:nth-child(5) { text-align: right; font-family: Consolas, monospace; }
+		tbody tr:nth-child(even) td { background: #f2f2f2; }
+	</style>
+</head>
+<body>
+	<h1>${escapeHtml(titulo)}</h1>
+	${subtitulo ? `<div class="subtitle">${escapeHtml(subtitulo)}</div>` : ""}
+	<table>
+		<thead>
+			<tr>
+				<th>MERITO</th><th>POSTULANTE</th><th>DNI</th><th>CARRERA</th>
+				<th>PUNTAJE</th><th>CONDICION</th><th>PUBLICADO</th><th>FECHA PUB.</th>
+			</tr>
+		</thead>
+		<tbody>${bodyRows}</tbody>
+	</table>
+</body>
+</html>`;
+};
+
+const getStored = (key) => {
+	try { return JSON.parse(localStorage.getItem(key) || "[]"); } catch { return []; }
+};
+
+const calcularPuntaje = (estudianteAnswers, claveAnswers, config) => {
+	let total = 0;
+	for (let i = 1; i <= 100; i += 1) {
+		const q = `PREG_${String(i).padStart(3, "0")}`;
+		const respEst = estudianteAnswers[q] || "";
+		const respClave = claveAnswers[q] || "";
+		if (!respClave) total += config.correcta;
+		else if (respEst === "") total += config.blanco;
+		else if (respEst === respClave) total += config.correcta;
+		else total += config.incorrecta;
+	}
+	return Math.round(total * 1000) / 1000;
+};
+
 export default function GestResultadosAdmision() {
 	const [procesos, setProcesos] = useState([]);
 	const [resultados, setResultados] = useState([]);
 	const [filtroProceso, setFiltroProceso] = useState("__TODOS__");
 	const [filtroCondicion, setFiltroCondicion] = useState("__TODAS__");
+	const [filtroCarrera, setFiltroCarrera] = useState("__TODAS__");
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState("");
 	const [updatingId, setUpdatingId] = useState(null);
@@ -52,21 +155,125 @@ export default function GestResultadosAdmision() {
 		loadResultados();
 	}, []);
 
+	const resultadosLocales = useMemo(() => {
+		if (resultados.length > 0) return [];
+		const estudiantes = getStored("studentResponsesData");
+		const claves = getStored("responsesData");
+		const postulantes = getStored("postulantsData");
+		if (estudiantes.length === 0 || claves.length === 0) return [];
+
+		const config = getConfig();
+		const plazas = getPlazas();
+		const manualPlazas = hasManualPlazas();
+		const oficiales = getStored("officialResultsData");
+		const claveIndex = new Map();
+		claves.forEach((c) => claveIndex.set(String(c.tema).trim().toUpperCase(), c.answers));
+
+		const postulanteIndex = new Map();
+		postulantes.forEach((p) => postulanteIndex.set(p.id, p));
+
+		const oficialIndex = new Map();
+		oficiales.forEach((r) => {
+			if (r.dni) oficialIndex.set(String(r.dni).trim(), r);
+			if (r.nombre) oficialIndex.set(normalizeName(r.nombre), r);
+		});
+
+		const base = estudiantes.map((est, idx) => {
+			const tema = String(est.tema || "").trim().toUpperCase();
+			const clave = claveIndex.get(tema);
+			if (!clave) return null;
+			const postulante = postulanteIndex.get(est.postulantId) || {};
+			const oficial = oficialIndex.get(String(est.litho || "").trim())
+				|| oficialIndex.get(String(postulante.litho || "").trim())
+				|| oficialIndex.get(String(postulante.dni || "").trim())
+				|| oficialIndex.get(normalizeName(est.postulantName || postulante.names));
+			const carreraNombre = oficial?.carrera || postulante.carrera || "";
+			return {
+				id: `local-${idx}`,
+				local: true,
+				proceso: procesos[0] ? { id: procesos[0].id } : null,
+				inscripcion: {
+					id: null,
+					postulante: {
+						dni: postulante.dni || "",
+						nombres: est.postulantName || postulante.names || "",
+						apellidoPat: postulante.apellidoPat || "",
+						apellidoMat: postulante.apellidoMat || "",
+					},
+					carrera: { nombre: carreraNombre },
+				},
+				calificacion: null,
+				puntajeFinal: calcularPuntaje(est.answers, clave, config),
+				ordenMerito: null,
+				condicion: oficial?.condicion || "NO INGRESO",
+				vacanteAmpliada: false,
+				publicado: false,
+				fechaPublicacion: null,
+			};
+		}).filter(Boolean);
+
+		const porCarrera = {};
+		base.forEach((item) => {
+			const carrera = item.inscripcion?.carrera?.nombre || "";
+			if (!porCarrera[carrera]) porCarrera[carrera] = [];
+			porCarrera[carrera].push(item);
+		});
+		Object.entries(porCarrera).forEach(([carrera, grupo]) => {
+			grupo.sort((a, b) => b.puntajeFinal - a.puntajeFinal);
+			const vacantes = plazas[carrera] || 0;
+			grupo.forEach((item, idx) => {
+				item.condicion = manualPlazas && vacantes > 0
+					? (idx < vacantes ? "INGRESO" : "NO INGRESO")
+					: (item.condicion || "NO INGRESO");
+			});
+		});
+
+		return base
+			.sort((a, b) => b.puntajeFinal - a.puntajeFinal)
+			.map((item, idx) => ({ ...item, ordenMerito: idx + 1 }));
+	}, [resultados, procesos]);
+
+	const resultadosMostrados = useMemo(() => {
+		if (resultados.length === 0) return resultadosLocales;
+		if (hasManualPlazas()) return resultados;
+
+		const oficialIndex = new Map();
+		getStored("officialResultsData").forEach((r) => {
+			if (r.dni) oficialIndex.set(String(r.dni).trim(), r);
+			if (r.nombre) oficialIndex.set(normalizeName(r.nombre), r);
+		});
+
+		return resultados.map((r) => {
+			const postulante = r.inscripcion?.postulante || {};
+			const oficial = oficialIndex.get(String(postulante.dni || "").trim())
+				|| oficialIndex.get(normalizeName(nombreCompleto(postulante)));
+			return oficial?.condicion ? { ...r, condicion: oficial.condicion } : r;
+		});
+	}, [resultados, resultadosLocales]);
+
 	const resultadosFiltrados = useMemo(() => {
-		let list = resultados;
+		let list = resultadosMostrados;
 		if (filtroProceso !== "__TODOS__") {
 			list = list.filter(r => String(r.proceso?.id) === filtroProceso);
 		}
 		if (filtroCondicion !== "__TODAS__") {
 			list = list.filter(r => String(r.condicion) === filtroCondicion);
 		}
+		if (filtroCarrera !== "__TODAS__") {
+			list = list.filter(r => carreraResultado(r) === filtroCarrera);
+		}
 		return list.sort((a, b) => (a.ordenMerito ?? 9999) - (b.ordenMerito ?? 9999));
-	}, [resultados, filtroProceso, filtroCondicion]);
+	}, [resultadosMostrados, filtroProceso, filtroCondicion, filtroCarrera]);
 
 	const condiciones = useMemo(() => {
-		const set = new Set(resultados.map(r => r.condicion).filter(Boolean));
+		const set = new Set(resultadosMostrados.map(r => r.condicion).filter(Boolean));
 		return [...set];
-	}, [resultados]);
+	}, [resultadosMostrados]);
+
+	const carreras = useMemo(() => {
+		const set = new Set(resultadosMostrados.map(carreraResultado).filter(Boolean));
+		return [...set].sort();
+	}, [resultadosMostrados]);
 
 	const togglePublicado = async (r) => {
 		setUpdatingId(r.id);
@@ -83,6 +290,9 @@ export default function GestResultadosAdmision() {
 				publicado:        !r.publicado,
 				fechaPublicacion: !r.publicado ? new Date().toISOString() : null,
 			};
+			if (r.local) {
+				throw new Error("Este resultado esta calculado localmente. Para publicarlo en BD primero se debe generar calificacion/inscripcion en backend.");
+			}
 			const updated = await apiRequest(`/api/resultado-admision/${r.id}`, {
 				method: "PUT", body: JSON.stringify(payload),
 			});
@@ -108,6 +318,52 @@ export default function GestResultadosAdmision() {
 		return filtroCondicion;
 	};
 
+	const getCarreraLabel = () => {
+		if (filtroCarrera === "__TODAS__") return "Todas las carreras";
+		return filtroCarrera;
+	};
+
+	const handleExportExcel = async () => {
+		if (!resultadosFiltrados.length) return;
+		const rows = buildExportRows(resultadosFiltrados);
+		await writeRowsToXlsx(rows, [
+			{ header: "MERITO", key: "merito", width: 10 },
+			{ header: "POSTULANTE", key: "postulante", width: 42 },
+			{ header: "DNI", key: "dni", width: 14 },
+			{ header: "CARRERA", key: "carrera", width: 36 },
+			{ header: "PUNTAJE", key: "puntaje", width: 14 },
+			{ header: "CONDICION", key: "condicion", width: 16 },
+			{ header: "PUBLICADO", key: "publicado", width: 12 },
+			{ header: "FECHA PUB.", key: "fechaPublicacion", width: 16 },
+		], "Resultados BD", "resultados-admision-bd.xlsx");
+	};
+
+	const handlePrint = () => {
+		if (!resultadosFiltrados.length) return;
+		const printWindow = window.open("", "_blank");
+		if (!printWindow) {
+			window.print();
+			return;
+		}
+		const subtitulo = [
+			getProcesoLabel(),
+			getCarreraLabel(),
+			getCondicionLabel(),
+		].filter(Boolean).join(" | ");
+		printWindow.document.open();
+		printWindow.document.write(buildPrintableReport({
+			titulo: "Resultados de admision",
+			subtitulo,
+			rows: buildExportRows(resultadosFiltrados),
+		}));
+		printWindow.document.close();
+		printWindow.focus();
+		setTimeout(() => {
+			printWindow.print();
+			printWindow.close();
+		}, 250);
+	};
+
 	return (
 		<div className="dashboard-shell">
 			<Header />
@@ -118,6 +374,7 @@ export default function GestResultadosAdmision() {
 					<h1 className="display-6 fw-bold mb-2">Resultados de admisión</h1>
 					<p className="text-light-emphasis mb-0">
 						Visualiza y publica los resultados oficiales almacenados en la base de datos.
+						{resultados.length === 0 && resultadosLocales.length > 0 ? " No hay registros BD; se muestran resultados calculados localmente." : ""}
 					</p>
 				</div>
 
@@ -297,6 +554,83 @@ export default function GestResultadosAdmision() {
 							)}
 						</div>
 
+						{/* Dropdown Carreras */}
+						<div style={{ position: "relative", minWidth: 260 }}>
+							<button
+								onClick={() => setOpenDropdown(openDropdown === "carrera" ? null : "carrera")}
+								style={{
+									width: "100%",
+									background: "rgba(255,255,255,0.04)",
+									border: "1px solid rgba(148,163,184,0.2)",
+									color: "#f8fafc",
+									padding: "0.5rem 0.75rem",
+									borderRadius: "0.375rem",
+									fontSize: "0.875rem",
+									textAlign: "left",
+									cursor: "pointer",
+									display: "flex",
+									justifyContent: "space-between",
+									alignItems: "center"
+								}}
+							>
+								<span>{getCarreraLabel()}</span>
+								<span style={{ color: "#94a3b8" }}>â–¼</span>
+							</button>
+							{openDropdown === "carrera" && (
+								<div style={{
+									position: "absolute",
+									top: "100%",
+									left: 0,
+									right: 0,
+									background: "rgba(30,41,59,0.95)",
+									border: "1px solid rgba(148,163,184,0.2)",
+									borderTop: "none",
+									borderRadius: "0 0 0.375rem 0.375rem",
+									zIndex: 10,
+									maxHeight: "240px",
+									overflowY: "auto"
+								}}>
+									<div
+										onClick={() => { setFiltroCarrera("__TODAS__"); setOpenDropdown(null); }}
+										style={{
+											padding: "0.5rem 0.75rem",
+											color: "#cbd5e1",
+											cursor: "pointer",
+											background: filtroCarrera === "__TODAS__" ? "rgba(59,130,246,0.2)" : "transparent",
+											fontSize: "0.875rem"
+										}}
+									>
+										â€” Todas las carreras â€”
+									</div>
+									{carreras.map(c => (
+										<div
+											key={c}
+											onClick={() => { setFiltroCarrera(c); setOpenDropdown(null); }}
+											style={{
+												padding: "0.5rem 0.75rem",
+												color: "#cbd5e1",
+												cursor: "pointer",
+												background: filtroCarrera === c ? "rgba(59,130,246,0.2)" : "transparent",
+												fontSize: "0.875rem",
+												borderTop: "1px solid rgba(148,163,184,0.08)"
+											}}
+											onMouseEnter={(e) => e.target.style.background = "rgba(59,130,246,0.15)"}
+											onMouseLeave={(e) => e.target.style.background = filtroCarrera === c ? "rgba(59,130,246,0.2)" : "transparent"}
+										>
+											{c}
+										</div>
+									))}
+								</div>
+							)}
+						</div>
+
+						<button className="btn action-button action-button-secondary" onClick={handlePrint} disabled={!resultadosFiltrados.length}>
+							<i className="bi bi-printer"></i> PDF
+						</button>
+						<button className="btn action-button action-button-primary action-button-success" onClick={handleExportExcel} disabled={!resultadosFiltrados.length}>
+							<i className="bi bi-file-earmark-excel"></i> Excel
+						</button>
+
 						<span style={{ color: "#64748b", fontSize: "0.82rem" }}>
 							{resultadosFiltrados.length} resultado(s)
 						</span>
@@ -323,7 +657,7 @@ export default function GestResultadosAdmision() {
 								{!loading && resultadosFiltrados.length === 0 && (
 									<tr>
 										<td colSpan="8" className="text-center text-light-emphasis py-4">
-											No hay resultados registrados en la base de datos.
+											No hay resultados registrados. Importa postulantes, claves y respuestas primero.
 										</td>
 									</tr>
 								)}
@@ -368,10 +702,10 @@ export default function GestResultadosAdmision() {
 														color: r.publicado ? "#fff" : "#94a3b8",
 													}}
 													onClick={() => togglePublicado(r)}
-													disabled={isUpdating}
+													disabled={isUpdating || r.local}
 													title={r.publicado ? "Despublicar" : "Publicar"}
 												>
-													{isUpdating ? "..." : r.publicado ? "Publicado" : "Publicar"}
+													{r.local ? "Local" : isUpdating ? "..." : r.publicado ? "Publicado" : "Publicar"}
 												</button>
 											</td>
 											<td style={{ fontSize: "0.78rem", color: "#64748b" }}>

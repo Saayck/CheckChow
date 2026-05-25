@@ -1,11 +1,10 @@
 import Header from "../../../components/header";
 import "../../../styles/dashboard.css";
 import { writeRowsToXlsx } from "../../../utils/excel";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { getConfig } from "../configuracion_calificacion/configuracion_calificacion";
 import { getOfficialResults } from "../resultados_oficiales/resultados_oficiales";
-import { getPlazas } from "../plazas/plazas";
-import { apiRequest } from "../../../utils/api";
+import { getPlazas, hasManualPlazas } from "../plazas/plazas";
 
 const getStored = (key) => {
 	try { return JSON.parse(localStorage.getItem(key) || "[]"); } catch { return []; }
@@ -180,21 +179,6 @@ export default function ExportarResultados() {
 	const [titulo, setTitulo] = useState("RESULTADOS DE EXAMEN DE ADMISIÓN");
 	const [subtitulo, setSubtitulo] = useState("");
 	const [filtroCarrera, setFiltroCarrera] = useState("__TODAS__");
-	const [dbPlazas, setDbPlazas] = useState({});
-
-	useEffect(() => {
-		apiRequest("/api/vacante", { redirectOnUnauthorized: false })
-			.then((data) => {
-				const map = {};
-				(data || []).forEach((v) => {
-					const carrera = v.carrera?.nombre;
-					if (!carrera) return;
-					map[carrera] = v.vacantes || 0;
-				});
-				setDbPlazas(map);
-			})
-			.catch(() => {});
-	}, []);
 
 	const oficiales = useMemo(() => {
 		const raw = getOfficialResults();
@@ -224,7 +208,9 @@ export default function ExportarResultados() {
 			const postulant = postulantIndex.get(est.postulantId);
 			const dni = postulant?.dni || "";
 			const puntajeOMR = calcularPuntaje(est.answers, clave, config);
-			const oficial = oficiales.get(String(dni).trim());
+			const oficial = oficiales.get(String(est.litho || "").trim())
+				|| oficiales.get(String(postulant?.litho || "").trim())
+				|| oficiales.get(String(dni).trim());
 			return {
 				nombre: est.postulantName,
 				dni,
@@ -238,8 +224,9 @@ export default function ExportarResultados() {
 		}).filter(Boolean);
 
 		// Condición OMR: top N por carrera según plazas (se calcula ANTES de filtrar)
-		const plazas = { ...getPlazas(), ...dbPlazas };
-		const _tienePlazas = Object.values(plazas).some((v) => v > 0);
+		const plazas = getPlazas();
+		const manualPlazas = hasManualPlazas();
+		const _tienePlazas = manualPlazas && Object.values(plazas).some((v) => v > 0);
 		const porCarreraPlaza = {};
 		items.forEach((item) => {
 			const c = item.carreraOficial || "";
@@ -250,7 +237,9 @@ export default function ExportarResultados() {
 			grupo.sort((a, b) => b.puntajeOMR - a.puntajeOMR);
 			const n = plazas[carrera] || 0;
 			grupo.forEach((item, idx) => {
-				item.condicionOMR = n > 0 ? (idx < n ? "INGRESO" : "NO INGRESO") : null;
+				item.condicionOMR = manualPlazas && n > 0
+					? (idx < n ? "INGRESO" : "NO INGRESO")
+					: (item.condicionOficial || "NO INGRESO");
 			});
 		});
 
@@ -280,7 +269,7 @@ export default function ExportarResultados() {
 				...item,
 			})),
 		};
-	}, [config, oficiales, filtroCarrera, dbPlazas]);
+	}, [config, oficiales, filtroCarrera]);
 
 	const tieneOficial = oficiales.size > 0;
 

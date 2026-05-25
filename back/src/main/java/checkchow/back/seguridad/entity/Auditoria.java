@@ -31,17 +31,17 @@ public class Auditoria {
     private Sesion sesion;
 
     @Enumerated(EnumType.STRING)
-    @Column
+    @Column(nullable = false)
     private TAccion accion;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "metodo_http")
+    @Column(name = "metodo_http", nullable = false)
     private TMetodoHttp metodoHttp;
 
-    @Column(length = 255)
+    @Column(length = 255, nullable = false)
     private String endpoint;
 
-    @Column(length = 100)
+    @Column(length = 100, nullable = false)
     private String entidad;
 
     @Column(name = "entidad_id")
@@ -52,7 +52,7 @@ public class Auditoria {
     private String valorAnterior;
 
     @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "valor_nuevo")
+    @Column(name = "valor_nuevo", nullable = false)
     private String valorNuevo;
 
     @JdbcTypeCode(SqlTypes.INET)

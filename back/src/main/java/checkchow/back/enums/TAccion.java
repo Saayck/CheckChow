@@ -5,6 +5,7 @@ public enum TAccion {
     READ,
     UPDATE,
     DELETE,
+    IMPORTACION,
     LOGIN,
     LOGOUT
 }

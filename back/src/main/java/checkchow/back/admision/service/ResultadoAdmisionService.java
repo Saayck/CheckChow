@@ -1,13 +1,19 @@
 package checkchow.back.admision.service;
 
 import java.time.OffsetDateTime;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import checkchow.back.admision.entity.ResultadoAdmision;
 import checkchow.back.admision.repository.ResultadoAdmisionRepository;
+import checkchow.back.enums.TAccion;
+import checkchow.back.enums.TMetodoHttp;
+import checkchow.back.seguridad.service.AuditoriaService;
 import checkchow.back.seguridad.service.UsuarioAutenticadoService;
+import checkchow.back.user.Usuario;
 
 @Service
 @RequiredArgsConstructor
@@ -19,6 +25,7 @@ public class ResultadoAdmisionService {
             resultadoRepository;
 
     private final UsuarioAutenticadoService usuarioAutenticadoService;
+    private final AuditoriaService auditoriaService;
 
     public List<ResultadoAdmision>
     listar() {
@@ -67,8 +74,8 @@ public class ResultadoAdmisionService {
         resultado.setGeneradoEn(
                 OffsetDateTime.now());
 
-        resultado.setGeneradoPor(
-                usuarioAutenticadoService.obtenerActualOUsuarioSistema());
+        Usuario usuario = usuarioAutenticadoService.obtenerActualOUsuarioSistema();
+        resultado.setGeneradoPor(usuario);
 
         if (Boolean.TRUE.equals(
                 resultado.getPublicado())) {
@@ -77,8 +84,11 @@ public class ResultadoAdmisionService {
                     OffsetDateTime.now());
         }
 
-        return resultadoRepository
-                .save(resultado);
+        ResultadoAdmision guardado = resultadoRepository.save(resultado);
+        auditoriaService.registrarEvento(usuario, null, TAccion.CREATE, TMetodoHttp.POST,
+                "/api/resultado-admision", "resultado_admision", String.valueOf(guardado.getId()),
+                snapshot(guardado), null);
+        return guardado;
     }
 
     public ResultadoAdmision
@@ -86,8 +96,8 @@ public class ResultadoAdmisionService {
             Integer id,
             ResultadoAdmision data) {
 
-        ResultadoAdmision resultado =
-                obtener(id);
+        ResultadoAdmision resultado = obtener(id);
+        String valorAnterior = snapshot(resultado);
 
         resultado.setProceso(
                 data.getProceso());
@@ -125,8 +135,11 @@ public class ResultadoAdmisionService {
                     usuarioAutenticadoService.obtenerActualOUsuarioSistema());
         }
 
-        return resultadoRepository
-                .save(resultado);
+        ResultadoAdmision guardado = resultadoRepository.save(resultado);
+        auditoriaService.registrarEvento(usuarioAutenticadoService.obtenerActualOUsuarioSistema(), null,
+                TAccion.UPDATE, TMetodoHttp.PUT, "/api/resultado-admision/" + id,
+                "resultado_admision", String.valueOf(id), valorAnterior, snapshot(guardado), null);
+        return guardado;
     }
 
     public void eliminar(
@@ -135,7 +148,29 @@ public class ResultadoAdmisionService {
         ResultadoAdmision resultado =
                 obtener(id);
 
-        resultadoRepository
-                .delete(resultado);
+        String valorAnterior = snapshot(resultado);
+
+        resultadoRepository.delete(resultado);
+        auditoriaService.registrarEvento(usuarioAutenticadoService.obtenerActualOUsuarioSistema(), null,
+                TAccion.DELETE, TMetodoHttp.DELETE, "/api/resultado-admision/" + id,
+                "resultado_admision", String.valueOf(id), valorAnterior,
+                auditoriaService.toJson(Map.of("accion", "RESULTADO_ADMISION_ELIMINADO", "id", id)), null);
+    }
+
+    private String snapshot(ResultadoAdmision resultado) {
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("id", resultado.getId());
+        data.put("procesoId", resultado.getProceso() != null ? resultado.getProceso().getId() : null);
+        data.put("inscripcionId", resultado.getInscripcion() != null ? resultado.getInscripcion().getId() : null);
+        data.put("calificacionId", resultado.getCalificacion() != null ? resultado.getCalificacion().getId() : null);
+        data.put("puntajeFinal", resultado.getPuntajeFinal());
+        data.put("ordenMerito", resultado.getOrdenMerito());
+        data.put("condicion", resultado.getCondicion());
+        data.put("vacanteAmpliada", resultado.getVacanteAmpliada());
+        data.put("publicado", resultado.getPublicado());
+        data.put("fechaPublicacion", resultado.getFechaPublicacion());
+        data.put("generadoPorId", resultado.getGeneradoPor() != null ? resultado.getGeneradoPor().getId() : null);
+        data.put("generadoEn", resultado.getGeneradoEn());
+        return auditoriaService.toJson(data);
     }
 }
