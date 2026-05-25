@@ -7,6 +7,7 @@ import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import checkchow.back.admision.entity.ResultadoAdmision;
 import checkchow.back.admision.repository.ResultadoAdmisionRepository;
+import checkchow.back.seguridad.service.UsuarioAutenticadoService;
 
 @Service
 @RequiredArgsConstructor
@@ -16,6 +17,8 @@ public class ResultadoAdmisionService {
     private final
     ResultadoAdmisionRepository
             resultadoRepository;
+
+    private final UsuarioAutenticadoService usuarioAutenticadoService;
 
     public List<ResultadoAdmision>
     listar() {
@@ -63,6 +66,9 @@ public class ResultadoAdmisionService {
 
         resultado.setGeneradoEn(
                 OffsetDateTime.now());
+
+        resultado.setGeneradoPor(
+                usuarioAutenticadoService.obtenerActualOUsuarioSistema());
 
         if (Boolean.TRUE.equals(
                 resultado.getPublicado())) {
@@ -114,8 +120,10 @@ public class ResultadoAdmisionService {
                     OffsetDateTime.now());
         }
 
-        resultado.setGeneradoPor(
-                data.getGeneradoPor());
+        if (resultado.getGeneradoPor() == null) {
+            resultado.setGeneradoPor(
+                    usuarioAutenticadoService.obtenerActualOUsuarioSistema());
+        }
 
         return resultadoRepository
                 .save(resultado);

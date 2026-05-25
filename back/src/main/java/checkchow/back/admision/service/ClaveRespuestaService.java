@@ -7,6 +7,7 @@ import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import checkchow.back.admision.entity.ClaveRespuesta;
 import checkchow.back.admision.repository.ClaveRespuestaRepository;
+import checkchow.back.seguridad.service.UsuarioAutenticadoService;
 
 @Service
 @RequiredArgsConstructor
@@ -16,6 +17,8 @@ public class ClaveRespuestaService {
     private final
     ClaveRespuestaRepository
             claveRespuestaRepository;
+
+    private final UsuarioAutenticadoService usuarioAutenticadoService;
 
     public List<ClaveRespuesta>
     listar() {
@@ -55,6 +58,9 @@ public class ClaveRespuestaService {
         clave.setFechaModificacion(
                 OffsetDateTime.now());
 
+        clave.setCreadoPor(
+                usuarioAutenticadoService.obtenerActual());
+
         return claveRespuestaRepository
                 .save(clave);
     }
@@ -79,8 +85,10 @@ public class ClaveRespuestaService {
         clave.setFormula(
                 data.getFormula());
 
-        clave.setCreadoPor(
-                data.getCreadoPor());
+        if (clave.getCreadoPor() == null) {
+            clave.setCreadoPor(
+                    usuarioAutenticadoService.obtenerActual());
+        }
 
         clave.setFechaModificacion(
                 OffsetDateTime.now());

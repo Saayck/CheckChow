@@ -7,6 +7,7 @@ import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import checkchow.back.admision.entity.ProcesoAdmision;
 import checkchow.back.admision.repository.ProcesoAdmisionRepository;
+import checkchow.back.seguridad.service.UsuarioAutenticadoService;
 
 @Service
 @RequiredArgsConstructor
@@ -16,6 +17,8 @@ public class ProcesoAdmisionService {
     private final
     ProcesoAdmisionRepository
             procesoRepository;
+
+    private final UsuarioAutenticadoService usuarioAutenticadoService;
 
     public List<ProcesoAdmision>
     listar() {
@@ -64,6 +67,9 @@ public class ProcesoAdmisionService {
         proceso.setFechaModificacion(
                 OffsetDateTime.now());
 
+        proceso.setCreadoPor(
+                usuarioAutenticadoService.obtenerActual());
+
         return procesoRepository
                 .save(proceso);
     }
@@ -97,8 +103,10 @@ public class ProcesoAdmisionService {
         proceso.setEstado(
                 data.getEstado());
 
-        proceso.setCreadoPor(
-                data.getCreadoPor());
+        if (proceso.getCreadoPor() == null) {
+            proceso.setCreadoPor(
+                    usuarioAutenticadoService.obtenerActual());
+        }
 
         proceso.setFechaModificacion(
                 OffsetDateTime.now());

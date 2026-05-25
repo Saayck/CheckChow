@@ -38,6 +38,16 @@ const refreshAccessToken = async () => {
 export const apiRequest = async (path, options = {}, _retry = true) => {
 	const session = getSession();
 	const { redirectOnUnauthorized = true, ...fetchOptions } = options;
+
+	if (!session?.token) {
+		localStorage.removeItem("checkchow_session");
+		if (redirectOnUnauthorized !== false) {
+			window.location.href = "/";
+			return null;
+		}
+		throw new Error("Sesion no iniciada. Inicia sesion nuevamente.");
+	}
+
 	const headers = {
 		...(fetchOptions.body ? { "Content-Type": "application/json" } : {}),
 		...(session?.token ? { Authorization: `Bearer ${session.token}` } : {}),

@@ -1,6 +1,7 @@
 package checkchow.back.user;
 
 import checkchow.back.enums.TRol;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.*;
 import lombok.Getter;
 import java.time.LocalDateTime;
@@ -13,6 +14,7 @@ public class Usuario {
     private Long id;
 
     @Column(unique = true, length = 120, nullable = false) private String email;
+    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     @Column(name = "password", length = 255, nullable = false) private String password;
     @Column(length = 100, nullable = false) private String nombre_completo;
     @Enumerated(EnumType.STRING)

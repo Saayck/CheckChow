@@ -33,12 +33,6 @@ public class SecurityConfig {
     }
 
     @Bean
-    public JwtRequestFilter jwtRequestFilter() {
-        return new JwtRequestFilter();
-    }
-
-
-    @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http, JwtRequestFilter jwtRequestFilter) throws Exception {
         http
                 // Config CORS definida en WebMvcConfigurer
@@ -50,6 +44,9 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/proceso-admision").permitAll()
+                        .requestMatchers("/api/omr/**").permitAll()
+                        .requestMatchers("/api/resultado-admision/**").permitAll()
                         //.requestMatchers(HttpMethod.GET, "/api/usuarios/**").hasAnyRole("ADMIN", "USER")
                         .requestMatchers(HttpMethod.GET, "/api/auth/**", "/api/registro/**"
                         ).permitAll()

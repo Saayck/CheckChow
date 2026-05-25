@@ -1,12 +1,17 @@
 package checkchow.back.omr.controller;
 
+import java.util.List;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import lombok.RequiredArgsConstructor;
 
-import checkchow.back.omr.entity.OmrUnion;
+import checkchow.back.omr.dto.OmrIdentificacionImportDTO;
+import checkchow.back.omr.dto.OmrImportResponse;
+import checkchow.back.omr.dto.OmrRespuestaImportDTO;
+import checkchow.back.omr.dto.OmrUnionResponse;
 import checkchow.back.omr.service.OmrService;
 
 @RestController
@@ -17,11 +22,29 @@ public class OmrController {
 
     private final OmrService omrService;
 
+    @PostMapping("/identificaciones/import")
+    public ResponseEntity<OmrImportResponse> importarIdentificaciones(
+            @RequestParam(required = false) Integer procesoId,
+            @RequestBody List<OmrIdentificacionImportDTO> rows) {
+
+        return ResponseEntity.ok(
+                omrService.importarIdentificaciones(procesoId, rows));
+    }
+
+    @PostMapping("/respuestas/import")
+    public ResponseEntity<OmrImportResponse> importarRespuestas(
+            @RequestParam(required = false) Integer procesoId,
+            @RequestBody List<OmrRespuestaImportDTO> rows) {
+
+        return ResponseEntity.ok(
+                omrService.importarRespuestas(procesoId, rows));
+    }
+
     @PostMapping("/union/{lithocode}")
-    public ResponseEntity<OmrUnion> crearUnion(
+    public ResponseEntity<OmrUnionResponse> crearUnion(
             @PathVariable String lithocode) {
 
-        OmrUnion union = omrService.crearUnion(lithocode);
+        OmrUnionResponse union = omrService.crearUnion(lithocode);
 
         return ResponseEntity
                 .status(HttpStatus.CREATED)
@@ -29,10 +52,10 @@ public class OmrController {
     }
 
     @GetMapping("/union/{lithocode}")
-    public ResponseEntity<OmrUnion> obtenerUnion(
+    public ResponseEntity<OmrUnionResponse> obtenerUnion(
             @PathVariable String lithocode) {
 
-        OmrUnion union = omrService.obtenerUnion(lithocode);
+        OmrUnionResponse union = omrService.obtenerUnion(lithocode);
 
         return ResponseEntity.ok(union);
     }

@@ -8,5 +8,6 @@ import checkchow.back.omr.entity.OmrIdentificacion;
 @Repository
 public interface OmrIdentificacionRepository extends JpaRepository<OmrIdentificacion, Integer> {
     Optional<OmrIdentificacion> findByLithocode(String lithocode);
+    Optional<OmrIdentificacion> findByCodPostulante(String codPostulante);
 }
 

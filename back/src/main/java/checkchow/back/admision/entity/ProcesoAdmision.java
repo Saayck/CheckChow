@@ -28,7 +28,7 @@ public class ProcesoAdmision {
     @Column(length = 10, nullable = false)
     private String periodo;
 
-    @Column(length = 255)
+    @Column(name = "descripcion", length = 255)
     private String description;
 
     @Column(name = "tipo_proceso_admision", length = 80)
