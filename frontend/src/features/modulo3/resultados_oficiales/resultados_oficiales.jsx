@@ -55,19 +55,37 @@ const limpiarFacultad = (linea) =>
 
 // Parsea una línea intentando extraer: SEC CODIGO NOMBRE PUNTAJE MERITO CONDICION
 const parsearFilaEstudiante = (linea) => {
-	// Patrón flexible: empieza con 4 dígitos (SEC), sigue código DNI, luego nombre, puntaje decimal, mérito, condición
-	const m = linea.match(
+	// Intenta primero el patrón con puntaje decimal
+	let m = linea.match(
 		/^(\d{4})\s+(\d{6,8})\s+(.+?)\s+([\d]{1,6}\.[\d]{1,3})\s+(\d{1,4})\s+(NO\s+INGRESO|INGRESO)/
 	);
-	if (!m) return null;
-	return {
-		sec: m[1],
-		dni: m[2].trim(),
-		nombre: m[3].trim(),
-		puntaje: parseFloat(m[4]),
-		merito: m[5].trim(),
-		condicion: m[6].replace(/\s+/, " ").trim(),
-	};
+	if (m) {
+		return {
+			sec: m[1],
+			dni: m[2].trim(),
+			nombre: m[3].trim(),
+			puntaje: parseFloat(m[4]),
+			merito: m[5].trim(),
+			condicion: m[6].replace(/\s+/, " ").trim(),
+		};
+	}
+
+	// Si no coincide, intenta patrón sin puntaje decimal (NOMBRE CARRERA [CONDICION])
+	m = linea.match(
+		/^(\d{4})\s+(\d{6,8})\s+(.+?)\s+([A-ZÁÉÍÓÚÑ\s]+?)(?:\s+(NO\s+INGRESO|INGRESO))?$/i
+	);
+	if (m) {
+		return {
+			sec: m[1],
+			dni: m[2].trim(),
+			nombre: m[3].trim(),
+			puntaje: 0,
+			merito: 0,
+			condicion: (m[5] || "INGRESO").trim(),
+		};
+	}
+
+	return null;
 };
 
 export default function ResultadosOficiales() {

@@ -20,7 +20,7 @@ export default function GestPostulantes() {
 	const [postulants, setPostulants] = useState(getInitialPostulants);
 	const [editingId, setEditingId] = useState(null);
 	const [formVisible, setFormVisible] = useState(false);
-	const emptyForm = useMemo(() => ({ names: "", dni: "", litho: "", tema: "", carrera: "" }), []);
+	const emptyForm = useMemo(() => ({ names: "", dni: "", litho: "", tema: "", carrera: "", apellidoPat: "", apellidoMat: "" }), []);
 	const [formData, setFormData] = useState(emptyForm);
 	const [importMessage, setImportMessage] = useState("");
 	const [dbSaveResult, setDbSaveResult] = useState(null);
@@ -61,7 +61,7 @@ export default function GestPostulantes() {
 	};
 
 	const handleEditClick = (postulant) => {
-		setFormData({ names: postulant.names, dni: postulant.dni, litho: postulant.litho || "", tema: postulant.tema || "", carrera: postulant.carrera || "" });
+		setFormData({ names: postulant.names, dni: postulant.dni, litho: postulant.litho || "", tema: postulant.tema || "", carrera: postulant.carrera || "", apellidoPat: postulant.apellidoPat || "", apellidoMat: postulant.apellidoMat || "" });
 		setEditingId(postulant.id);
 		setFormVisible(true);
 	};
@@ -126,39 +126,87 @@ export default function GestPostulantes() {
 		) || null;
 	};
 
+	const normalizeDni = (dni) => String(dni || "").replace(/\s+/g, "").trim().toUpperCase();
+
 	const enrichWithOfficialPdf = (rows) => {
 		const oficiales = getOfficialResults();
-		if (!oficiales.length) return { rows, enriched: 0 };
+		console.log("[enrichWithOfficialPdf] Datos oficiales:", oficiales.length, oficiales.slice(0, 2));
+		if (!oficiales.length) {
+			setImportMessage("⚠ No hay datos del PDF oficial cargados. Primero carga el PDF en Módulo 3 → Resultados oficiales.");
+			return { rows, enriched: 0 };
+		}
 
+		// Crear mapa con DNI normalizado
 		const byDni = new Map();
 		oficiales.forEach((item) => {
-			if (item.dni) byDni.set(String(item.dni).trim(), item);
+			const dniKey = normalizeDni(item.dni);
+			byDni.set(dniKey, item);
+			console.log("[enrichWithOfficialPdf] Agregando DNI:", dniKey, "nombre:", item.nombre, "carrera:", item.carrera);
 		});
 
 		let enriched = 0;
 		const updated = rows.map((row) => {
-			if (row.carrera) return row;
-			const oficial = byDni.get(String(row.dni || "").trim());
-			if (!oficial?.carrera) return row;
-			enriched += 1;
-			return {
-				...row,
-				carrera: oficial.carrera,
-				facultad: oficial.facultad || row.facultad || "",
-			};
+			const dniKey = normalizeDni(row.dni);
+			const oficial = byDni.get(dniKey);
+			console.log("[enrichWithOfficialPdf] Buscando:", dniKey, "encontrado:", !!oficial);
+			if (!oficial) return row;
+
+			let cambios = 0;
+			const result = { ...row };
+
+			// Rellenar carrera (siempre si existe en oficial)
+			if (oficial.carrera && (!result.carrera || result.carrera === "")) {
+				result.carrera = oficial.carrera;
+				cambios += 1;
+				console.log("[enrichWithOfficialPdf] Rellenando carrera:", oficial.carrera);
+			}
+
+			// Rellenar nombre (siempre si existe en oficial)
+			if (oficial.nombre && (!result.names || result.names === "")) {
+				result.names = oficial.nombre;
+				cambios += 1;
+				console.log("[enrichWithOfficialPdf] Rellenando nombre:", oficial.nombre);
+			}
+
+			// Rellenar apellidos separando del nombre oficial
+			if (oficial.nombre && (!result.apellidoPat || result.apellidoPat === "")) {
+				const split = splitNombre(oficial.nombre);
+				if (split.apellidoPat) {
+					result.apellidoPat = split.apellidoPat;
+					cambios += 1;
+				}
+			}
+
+			if (oficial.nombre && (!result.apellidoMat || result.apellidoMat === "")) {
+				const split = splitNombre(oficial.nombre);
+				if (split.apellidoMat) {
+					result.apellidoMat = split.apellidoMat;
+					cambios += 1;
+				}
+			}
+
+			if (cambios > 0) enriched += 1;
+			return result;
 		});
 
+		console.log("[enrichWithOfficialPdf] Total enriquecidos:", enriched);
 		return { rows: updated, enriched };
 	};
 
 	const handleCompletarDesdePdf = async () => {
+		const oficiales = getOfficialResults();
+		console.log("=== DEPURACIÓN ===");
+		console.log("Postulantes importados:", postulants.slice(0, 3));
+		console.log("Datos oficiales:", oficiales.slice(0, 3));
+		
 		const { rows, enriched } = enrichWithOfficialPdf(postulants);
+		
 		if (!enriched) {
-			setImportMessage("No se encontraron carreras faltantes para completar desde el PDF oficial.");
+			setImportMessage("No se encontraron datos faltantes para completar desde el PDF oficial.");
 			return;
 		}
 		setPostulants(rows);
-		setImportMessage(`Se completaron ${enriched} carrera(s) desde el PDF oficial.`);
+		setImportMessage(`✓ Se completaron ${enriched} registro(s) desde el PDF oficial.`);
 		await saveToDb(rows);
 	};
 
@@ -325,11 +373,11 @@ export default function GestPostulantes() {
 
 				return {
 					id:          Date.now() + idx,
-					dni:         get('DNI'),
+					dni:         get('DNI', 'CODIGO'),
 					names:       get('NOMBRE', 'NOMBRES', 'NAME'),
 					apellidoPat: get('APELLIDO_PAT', 'AP_PAT', 'APELLIDO1'),
 					apellidoMat: get('APELLIDO_MAT', 'AP_MAT', 'APELLIDO2'),
-					litho:       get('LITHO', 'LITHOCODIGO', 'LITHO_CODIGO', 'CODIGO', 'COD_POSTULANTE'),
+					litho:       get('LITHO', 'LITHOCODIGO', 'LITHO_CODIGO', 'COD_POSTULANTE'),
 					tema:        get('TEMA'),
 					carrera:     get('CARRERA', 'ESCUELA', 'ESPEC', 'ESCOLA', 'ESPECIALIDAD', 'COD_ESC'),
 				};
@@ -352,7 +400,7 @@ export default function GestPostulantes() {
 				<div className="page-title mb-4">
 					<span className="eyebrow">Módulo 2</span>
 					<h1 className="display-6 fw-bold mb-2">Ficha de postulantes universitarios</h1>
-					<p className="text-light-emphasis mb-0">Gestiona postulantes: DNI, NOMBRE, LITHO y TEMA.</p>
+					<p className="text-light-emphasis mb-0">Gestiona postulantes: DNI, NOMBRE, APELLIDOS, LITHO y TEMA.</p>
 				</div>
 
 				<div className="d-flex justify-content-end mb-4">
@@ -365,7 +413,7 @@ export default function GestPostulantes() {
 							<input type="file" accept=".dbf,.xlsx" onChange={(e) => handleFileImport(e.target.files?.[0])} style={{ display: 'none' }} />
 						</label>
 						<button type="button" className="btn action-button action-button-secondary" onClick={handleCompletarDesdePdf}>
-							Completar carreras desde PDF
+							Completar datos desde PDF
 						</button>
 						<button type="button" className="btn action-button action-button-ghost" onClick={() => { setPostulants([]); setImportMessage(""); }}>
 							Limpiar
@@ -387,8 +435,8 @@ export default function GestPostulantes() {
 
 						<form className="row g-3 postulant-form" onSubmit={handleSubmit}>
 							<div className="col-md-6">
-								<label className="form-label">Nombres y apellidos</label>
-								<input className="form-control" name="names" value={formData.names} onChange={handleChange} required />
+								<label className="form-label">Nombres</label>
+								<input className="form-control" name="names" value={formData.names} onChange={handleChange} placeholder="Ej: Juan Carlos" required />
 							</div>
 							<div className="col-md-3">
 								<label className="form-label">DNI</label>
@@ -398,13 +446,21 @@ export default function GestPostulantes() {
 								<label className="form-label">LITHO</label>
 								<input className="form-control" name="litho" value={formData.litho} onChange={handleChange} />
 							</div>
+							<div className="col-md-4">
+								<label className="form-label">Apellido paterno</label>
+								<input className="form-control" name="apellidoPat" value={formData.apellidoPat} onChange={handleChange} placeholder="Ej: García" />
+							</div>
+							<div className="col-md-4">
+								<label className="form-label">Apellido materno</label>
+								<input className="form-control" name="apellidoMat" value={formData.apellidoMat} onChange={handleChange} placeholder="Ej: López" />
+							</div>
 
-							<div className="col-md-3">
+							<div className="col-md-4">
 								<label className="form-label">TEMA</label>
 								<input className="form-control" name="tema" value={formData.tema} onChange={handleChange} />
 							</div>
 
-							<div className="col-md-9">
+							<div className="col-12">
 								<label className="form-label">Carrera / Escuela profesional</label>
 								<input className="form-control" name="carrera" value={formData.carrera} onChange={handleChange} placeholder="Ej: Ingeniería de Sistemas" />
 							</div>
@@ -465,7 +521,9 @@ export default function GestPostulantes() {
 								<thead>
 									<tr>
 										<th>#</th>
-										<th>Nombres y apellidos</th>
+										<th>Nombres</th>
+										<th>Ap. Paterno</th>
+										<th>Ap. Materno</th>
 										<th>DNI</th>
 										<th>LITHO</th>
 										<th>TEMA</th>
@@ -477,7 +535,9 @@ export default function GestPostulantes() {
 									{postulants.map((postulant, idx) => (
 										<tr key={postulant.id} style={{ borderBottom: "1px solid rgba(148,163,184,0.08)" }}>
 											<td style={{ color: "#64748b" }}>{idx + 1}</td>
-											<td><strong>{postulant.names}</strong></td>
+											<td><strong>{postulant.names?.includes(",") ? postulant.names.split(",")[1].trim() : postulant.names}</strong></td>
+											<td style={{ fontSize: "0.9rem" }}>{postulant.apellidoPat || <span style={{ color: "#475569" }}>—</span>}</td>
+											<td style={{ fontSize: "0.9rem" }}>{postulant.apellidoMat || <span style={{ color: "#475569" }}>—</span>}</td>
 											<td style={{ fontFamily: "monospace" }}>{postulant.dni}</td>
 											<td>{postulant.litho || <span style={{ color: "#475569" }}>—</span>}</td>
 											<td>{postulant.tema || <span style={{ color: "#475569" }}>—</span>}</td>
