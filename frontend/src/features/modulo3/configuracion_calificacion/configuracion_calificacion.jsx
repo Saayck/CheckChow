@@ -22,20 +22,42 @@ export const getConfig = () => {
 export default function ConfiguracionCalificacion() {
 	const [config, setConfig] = useState(getConfig);
 	const [saved, setSaved] = useState(false);
+	const [errors, setErrors] = useState({});
 
 	useEffect(() => {
 		setSaved(false);
 	}, [config]);
 
+	const validateConfig = (updatedConfig) => {
+		const newErrors = {};
+
+		// Validar respuesta correcta: positivo y mayor que 1
+		if (updatedConfig.correcta <= 1) {
+			newErrors.correcta = "Debe ser positivo y mayor que 1";
+		}
+
+		// Validar respuesta incorrecta: negativo
+		if (updatedConfig.incorrecta >= 0) {
+			newErrors.incorrecta = "Debe ser negativo";
+		}
+
+		setErrors(newErrors);
+		return Object.keys(newErrors).length === 0;
+	};
+
 	const handleChange = (field, value) => {
 		const num = parseFloat(value);
-		setConfig((prev) => ({ ...prev, [field]: isNaN(num) ? 0 : num }));
+		const newConfig = { ...config, [field]: isNaN(num) ? 0 : num };
+		validateConfig(newConfig);
+		setConfig(newConfig);
 	};
 
 	const handleSave = (e) => {
 		e.preventDefault();
-		localStorage.setItem(CONFIG_KEY, JSON.stringify(config));
-		setSaved(true);
+		if (validateConfig(config)) {
+			localStorage.setItem(CONFIG_KEY, JSON.stringify(config));
+			setSaved(true);
+		}
 	};
 
 	const handleReset = () => {
@@ -76,9 +98,17 @@ export default function ConfiguracionCalificacion() {
 										className="form-control"
 										value={config.correcta}
 										onChange={(e) => handleChange("correcta", e.target.value)}
-										style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(148,163,184,0.2)", color: "#f8fafc" }}
+										style={{ 
+											background: "rgba(255,255,255,0.04)", 
+											border: errors.correcta ? "1px solid #ef4444" : "1px solid rgba(148,163,184,0.2)", 
+											color: "#f8fafc" 
+										}}
 									/>
+									{errors.correcta ? (
+									<small style={{ color: "#ef4444" }}>{errors.correcta}</small>
+								) : (
 									<small style={{ color: "#22c55e" }}>Se suma este valor cuando el alumno acierta.</small>
+									)}
 								</div>
 
 								<div className="mb-4">
@@ -91,9 +121,17 @@ export default function ConfiguracionCalificacion() {
 										className="form-control"
 										value={config.incorrecta}
 										onChange={(e) => handleChange("incorrecta", e.target.value)}
-										style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(148,163,184,0.2)", color: "#f8fafc" }}
+										style={{ 
+											background: "rgba(255,255,255,0.04)", 
+											border: errors.incorrecta ? "1px solid #ef4444" : "1px solid rgba(148,163,184,0.2)", 
+											color: "#f8fafc" 
+										}}
 									/>
-									<small style={{ color: "#ef4444" }}>Se suma este valor (negativo = descuento) cuando el alumno marca mal.</small>
+									{errors.incorrecta ? (
+									<small style={{ color: "#ef4444" }}>{errors.incorrecta}</small>
+									) : (
+										<small style={{ color: "#ef4444" }}>Se suma este valor (negativo = descuento) cuando el alumno marca mal.</small>
+									)}
 								</div>
 
 								<div className="mb-4">

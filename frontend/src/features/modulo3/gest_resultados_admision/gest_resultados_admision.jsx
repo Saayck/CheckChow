@@ -32,6 +32,7 @@ export default function GestResultadosAdmision() {
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState("");
 	const [updatingId, setUpdatingId] = useState(null);
+	const [openDropdown, setOpenDropdown] = useState(null);
 
 	const loadResultados = async () => {
 		setLoading(true);
@@ -96,6 +97,17 @@ export default function GestResultadosAdmision() {
 	const ingresados  = resultadosFiltrados.filter(r => String(r.condicion).includes("INGRESO") && !String(r.condicion).includes("NO")).length;
 	const publicados  = resultadosFiltrados.filter(r => r.publicado).length;
 
+	const getProcesoLabel = () => {
+		if (filtroProceso === "__TODOS__") return "Todos los procesos";
+		const p = procesos.find(x => String(x.id) === filtroProceso);
+		return p ? `${p.codigo} — ${p.periodo} ${p.anio}` : "Seleccionar";
+	};
+
+	const getCondicionLabel = () => {
+		if (filtroCondicion === "__TODAS__") return "Todas las condiciones";
+		return filtroCondicion;
+	};
+
 	return (
 		<div className="dashboard-shell">
 			<Header />
@@ -143,28 +155,148 @@ export default function GestResultadosAdmision() {
 				<div className="glass-card p-0">
 					<div className="d-flex flex-wrap align-items-center gap-3 px-4 py-3"
 						style={{ borderBottom: "1px solid rgba(148,163,184,0.08)" }}>
-						<select
-							className="form-select form-select-sm"
-							style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(148,163,184,0.2)", color: "#f8fafc", maxWidth: 280 }}
-							value={filtroProceso}
-							onChange={e => setFiltroProceso(e.target.value)}
-						>
-							<option value="__TODOS__">— Todos los procesos —</option>
-							{procesos.map(p => (
-								<option key={p.id} value={p.id}>{p.codigo} — {p.periodo} {p.anio}</option>
-							))}
-						</select>
-						<select
-							className="form-select form-select-sm"
-							style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(148,163,184,0.2)", color: "#f8fafc", maxWidth: 200 }}
-							value={filtroCondicion}
-							onChange={e => setFiltroCondicion(e.target.value)}
-						>
-							<option value="__TODAS__">— Todas las condiciones —</option>
-							{condiciones.map(c => (
-								<option key={c} value={c}>{c}</option>
-							))}
-						</select>
+						
+						{/* Dropdown Procesos */}
+						<div style={{ position: "relative", minWidth: 280 }}>
+							<button
+								onClick={() => setOpenDropdown(openDropdown === "proceso" ? null : "proceso")}
+								style={{
+									width: "100%",
+									background: "rgba(255,255,255,0.04)",
+									border: "1px solid rgba(148,163,184,0.2)",
+									color: "#f8fafc",
+									padding: "0.5rem 0.75rem",
+									borderRadius: "0.375rem",
+									fontSize: "0.875rem",
+									textAlign: "left",
+									cursor: "pointer",
+									display: "flex",
+									justifyContent: "space-between",
+									alignItems: "center"
+								}}
+							>
+								<span>{getProcesoLabel()}</span>
+								<span style={{ color: "#94a3b8" }}>▼</span>
+							</button>
+							{openDropdown === "proceso" && (
+								<div style={{
+									position: "absolute",
+									top: "100%",
+									left: 0,
+									right: 0,
+									background: "rgba(30,41,59,0.95)",
+									border: "1px solid rgba(148,163,184,0.2)",
+									borderTop: "none",
+									borderRadius: "0 0 0.375rem 0.375rem",
+									zIndex: 10,
+									maxHeight: "200px",
+									overflowY: "auto"
+								}}>
+									<div
+										onClick={() => { setFiltroProceso("__TODOS__"); setOpenDropdown(null); }}
+										style={{
+											padding: "0.5rem 0.75rem",
+											color: "#cbd5e1",
+											cursor: "pointer",
+											background: filtroProceso === "__TODOS__" ? "rgba(59,130,246,0.2)" : "transparent",
+											fontSize: "0.875rem"
+										}}
+									>
+										— Todos los procesos —
+									</div>
+									{procesos.map(p => (
+										<div
+											key={p.id}
+											onClick={() => { setFiltroProceso(String(p.id)); setOpenDropdown(null); }}
+											style={{
+												padding: "0.5rem 0.75rem",
+												color: "#cbd5e1",
+												cursor: "pointer",
+												background: String(filtroProceso) === String(p.id) ? "rgba(59,130,246,0.2)" : "transparent",
+												fontSize: "0.875rem",
+												borderTop: "1px solid rgba(148,163,184,0.08)",
+												hover: "background-color"
+											}}
+											onMouseEnter={(e) => e.target.style.background = "rgba(59,130,246,0.15)"}
+											onMouseLeave={(e) => e.target.style.background = String(filtroProceso) === String(p.id) ? "rgba(59,130,246,0.2)" : "transparent"}
+										>
+											{p.codigo} — {p.periodo} {p.anio}
+										</div>
+									))}
+								</div>
+							)}
+						</div>
+
+						{/* Dropdown Condiciones */}
+						<div style={{ position: "relative", minWidth: 200 }}>
+							<button
+								onClick={() => setOpenDropdown(openDropdown === "condicion" ? null : "condicion")}
+								style={{
+									width: "100%",
+									background: "rgba(255,255,255,0.04)",
+									border: "1px solid rgba(148,163,184,0.2)",
+									color: "#f8fafc",
+									padding: "0.5rem 0.75rem",
+									borderRadius: "0.375rem",
+									fontSize: "0.875rem",
+									textAlign: "left",
+									cursor: "pointer",
+									display: "flex",
+									justifyContent: "space-between",
+									alignItems: "center"
+								}}
+							>
+								<span>{getCondicionLabel()}</span>
+								<span style={{ color: "#94a3b8" }}>▼</span>
+							</button>
+							{openDropdown === "condicion" && (
+								<div style={{
+									position: "absolute",
+									top: "100%",
+									left: 0,
+									right: 0,
+									background: "rgba(30,41,59,0.95)",
+									border: "1px solid rgba(148,163,184,0.2)",
+									borderTop: "none",
+									borderRadius: "0 0 0.375rem 0.375rem",
+									zIndex: 10,
+									maxHeight: "200px",
+									overflowY: "auto"
+								}}>
+									<div
+										onClick={() => { setFiltroCondicion("__TODAS__"); setOpenDropdown(null); }}
+										style={{
+											padding: "0.5rem 0.75rem",
+											color: "#cbd5e1",
+											cursor: "pointer",
+											background: filtroCondicion === "__TODAS__" ? "rgba(59,130,246,0.2)" : "transparent",
+											fontSize: "0.875rem"
+										}}
+									>
+										— Todas las condiciones —
+									</div>
+									{condiciones.map(c => (
+										<div
+											key={c}
+											onClick={() => { setFiltroCondicion(c); setOpenDropdown(null); }}
+											style={{
+												padding: "0.5rem 0.75rem",
+												color: "#cbd5e1",
+												cursor: "pointer",
+												background: filtroCondicion === c ? "rgba(59,130,246,0.2)" : "transparent",
+												fontSize: "0.875rem",
+												borderTop: "1px solid rgba(148,163,184,0.08)"
+											}}
+											onMouseEnter={(e) => e.target.style.background = "rgba(59,130,246,0.15)"}
+											onMouseLeave={(e) => e.target.style.background = filtroCondicion === c ? "rgba(59,130,246,0.2)" : "transparent"}
+										>
+											{c}
+										</div>
+									))}
+								</div>
+							)}
+						</div>
+
 						<span style={{ color: "#64748b", fontSize: "0.82rem" }}>
 							{resultadosFiltrados.length} resultado(s)
 						</span>
