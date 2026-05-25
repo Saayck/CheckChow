@@ -8,8 +8,14 @@ const OPCIONES = ["A", "B", "C", "D", "E"];
 
 const selStyle = {
 	background: "rgba(255,255,255,0.04)",
-	border: "1px solid rgba(148,163,184,0.15)",
+	border: "1px solid rgba(148,163,184,0.18)",
+	borderRadius: 18,
+	minHeight: 56,
+	paddingLeft: 16,
+	paddingRight: 44,
 	color: "#f8fafc",
+	colorScheme: "dark",
+	boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)",
 };
 
 // Mantiene responsesData en localStorage para que resultados.jsx siga funcionando
@@ -341,34 +347,74 @@ export default function GestClavesRespuesta() {
 				<div className="glass-card p-4 mb-4">
 					<div className="row g-3 align-items-end">
 						<div className="col-md-6">
-							<label className="form-label" style={{ color: "#cbd5e1", fontWeight: 600 }}>
-								Proceso de admisión
-							</label>
-							<select className="form-select" style={selStyle}
-								value={selectedProceso} onChange={e => handleSelectProceso(e.target.value)}>
-								<option value="">— Seleccionar proceso —</option>
-								{procesos.map(p => (
-									<option key={p.id} value={p.id}>{p.codigo} — {p.periodo} {p.anio}</option>
-								))}
-							</select>
+							<div className="glass-card p-3 h-100" style={{ background: "rgba(255,255,255,0.03)", borderRadius: 22 }}>
+								<label className="form-label mb-2" style={{ color: "#cbd5e1", fontWeight: 700, fontSize: "0.92rem" }}>
+									Proceso de admisión
+								</label>
+								<p className="mb-3" style={{ color: "#64748b", fontSize: "0.8rem", lineHeight: 1.35 }}>
+									Selecciona el proceso para cargar o editar sus claves de respuesta.
+								</p>
+								<div style={{ position: "relative" }}>
+									<select
+										className="form-select thematic-select"
+										style={selStyle}
+										value={selectedProceso}
+										onChange={e => handleSelectProceso(e.target.value)}
+									>
+										<option value="">— Seleccionar proceso —</option>
+										{procesos.map(p => (
+											<option key={p.id} value={p.id}>{p.codigo} — {p.periodo} {p.anio}</option>
+										))}
+									</select>
+									<i
+										className="bi bi-chevron-down"
+										style={{
+											position: "absolute",
+											right: 16,
+											top: "50%",
+											transform: "translateY(-50%)",
+											pointerEvents: "none",
+											color: "#86efac",
+											fontSize: "0.9rem",
+										}} />
+								</div>
+							</div>
 						</div>
 						<div className="col-md-6">
-							<label className="form-label" style={{ color: "#cbd5e1", fontWeight: 600 }}>
-								Importar desde OMR
-								<span style={{ color: "#64748b", fontWeight: 400, marginLeft: 6, fontSize: "0.82rem" }}>
-									(requiere proceso seleccionado)
-								</span>
-							</label>
-							<label className={`btn btn-glass w-100 ${!selectedProceso || importing ? "disabled" : ""}`}
-								style={{ cursor: selectedProceso && !importing ? "pointer" : "default" }}>
-								{importing
-									? <><span className="spinner-border spinner-border-sm me-2"></span>Importando...</>
-									: <><i className="bi bi-upload me-2"></i>Importar DBF / Excel</>
-								}
-								<input type="file" accept=".dbf,.xls,.xlsx" style={{ display: "none" }}
-									disabled={!selectedProceso || importing}
-									onChange={e => { handleFileImport(e.target.files?.[0]); e.target.value = ""; }} />
-							</label>
+							<div className="import-action-card">
+								<div>
+									<p className="import-action-card__title">
+										<i className="bi bi-filetype-dbf"></i>
+										Importar desde OMR
+									</p>
+									<p className="import-action-card__subtitle">
+										Procesa claves desde DBF o Excel y las sincroniza con BD + local.
+									</p>
+								</div>
+								<label
+									className={`import-action-dropzone ${!selectedProceso || importing ? "is-disabled" : ""}`}
+									style={{ cursor: selectedProceso && !importing ? "pointer" : "default" }}
+								>
+									<span className="import-action-dropzone__icon">
+										{importing ? <span className="spinner-border spinner-border-sm" /> : <i className="bi bi-upload"></i>}
+									</span>
+									<span className="import-action-dropzone__text">
+										<span className="import-action-dropzone__label">
+											{importing ? "Importando..." : "Importar DBF / Excel"}
+										</span>
+										<span className="import-action-dropzone__hint">
+											{!selectedProceso ? "Selecciona un proceso para habilitar la carga" : "DBF, XLS o XLSX compatibles"}
+										</span>
+									</span>
+									<input
+										type="file"
+										accept=".dbf,.xls,.xlsx"
+										style={{ display: "none" }}
+										disabled={!selectedProceso || importing}
+										onChange={e => { handleFileImport(e.target.files?.[0]); e.target.value = ""; }}
+									/>
+								</label>
+							</div>
 						</div>
 					</div>
 				</div>
@@ -500,6 +546,7 @@ export default function GestClavesRespuesta() {
 									{questions.map(n => {
 										const c = claveMap[n];
 										const isSaving = saving === n;
+											const isFormulaDefault = !c || c.formula;
 										return (
 											<tr key={n} style={{ borderBottom: "1px solid rgba(148,163,184,0.04)" }}>
 												<td style={{ color: "#64748b", fontFamily: "monospace", fontSize: "0.8rem" }}>
@@ -507,11 +554,11 @@ export default function GestClavesRespuesta() {
 													{isSaving && <span style={{ color: "#94a3b8", marginLeft: 8, fontSize: "0.7rem" }}>guardando…</span>}
 												</td>
 												<td>
-													{c?.formula ? (
+													{isFormulaDefault ? (
 														<span style={{ color: "#a78bfa", fontSize: "0.78rem" }}>—</span>
 													) : (
-														<select className="form-select form-select-sm"
-															style={{ ...selStyle, maxWidth: 90, color: c?.respuestaCorrecta ? "#f8fafc" : "#475569" }}
+														<select className="form-select form-select-sm thematic-select response-select"
+															style={{ ...selStyle, maxWidth: 96, color: c?.respuestaCorrecta ? "#f8fafc" : "#94a3b8" }}
 															value={c?.respuestaCorrecta || ""}
 															onChange={e => handleRespuesta(n, e.target.value)}
 															disabled={isSaving}>
@@ -521,7 +568,7 @@ export default function GestClavesRespuesta() {
 													)}
 												</td>
 												<td style={{ textAlign: "center" }}>
-													<input type="checkbox" checked={c?.formula || false}
+													<input type="checkbox" checked={isFormulaDefault}
 														onChange={e => handleFormula(n, e.target.checked)}
 														disabled={isSaving}
 														style={{ accentColor: "#a78bfa", width: 16, height: 16, cursor: "pointer" }} />
